@@ -14,7 +14,7 @@ import (
 
 type BingoItem struct {
 	User string `json:"user"`
-	Nums string `json:"nums"` // "1,12,25,34,90"
+	Nums string `json:"nums"`
 }
 
 type Room struct {
@@ -28,8 +28,9 @@ type Room struct {
 	Running    bool                 `json:"running"`
 	Paused     bool                 `json:"paused"`
 	BingoQueue []BingoItem          `json:"bingoQueue"`
-	BingoOK    bool                 `json:"bingoOK"` // có ít nhất 1 approve
-	UpdatedAt  time.Time            `json:"-"`
+	BingoOK    bool                 `json:"bingoOK"`
+	Winner     string               `json:"winner"`     // người thắng
+	WinnerNums string               `json:"winnerNums"` // các số BINGO
 }
 
 var (
@@ -121,7 +122,6 @@ func joinRoom(w http.ResponseWriter, r *http.Request) {
 	if rm := rooms[id]; rm != nil {
 		rm.Users[user] = time.Now()
 	}
-
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -141,16 +141,13 @@ func leaveRoom(w http.ResponseWriter, r *http.Request) {
 	if user == rm.Admin {
 		delete(rooms, id)
 	}
-
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
 func roomState(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-
 	mu.Lock()
 	defer mu.Unlock()
-
 	jsonRes(w, rooms[id])
 }
 
@@ -164,7 +161,6 @@ func pingRoom(w http.ResponseWriter, r *http.Request) {
 	if rm := rooms[id]; rm != nil {
 		rm.Users[user] = time.Now()
 	}
-
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -187,6 +183,8 @@ func startRoom(w http.ResponseWriter, r *http.Request) {
 	rm.Current = 0
 	rm.BingoQueue = []BingoItem{}
 	rm.BingoOK = false
+	rm.Winner = ""
+	rm.WinnerNums = ""
 	mu.Unlock()
 
 	go func(rm *Room) {
@@ -194,13 +192,10 @@ func startRoom(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(time.Duration(rm.Interval) * time.Second)
 
 			mu.Lock()
-
-			// 🔥 FIX QUAN TRỌNG: dừng goroutine thật sự
 			if !rm.Running {
 				mu.Unlock()
 				return
 			}
-
 			if rm.Paused || len(rm.Numbers) == 0 {
 				mu.Unlock()
 				continue
@@ -240,27 +235,25 @@ func bingo(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	rm := rooms[id]
-	if rm == nil {
+	if rm == nil || rm.BingoOK {
 		jsonRes(w, map[string]bool{"ok": false})
 		return
 	}
 
-	found := false
 	for i, q := range rm.BingoQueue {
 		if q.User == user {
 			rm.BingoQueue[i].Nums = numsStr
-			found = true
-			break
+			rm.Paused = true
+			jsonRes(w, map[string]bool{"ok": true})
+			return
 		}
 	}
-	if !found {
-		rm.BingoQueue = append(rm.BingoQueue, BingoItem{
-			User: user,
-			Nums: numsStr,
-		})
-	}
 
-	rm.Paused = len(rm.BingoQueue) > 0
+	rm.BingoQueue = append(rm.BingoQueue, BingoItem{
+		User: user,
+		Nums: numsStr,
+	})
+	rm.Paused = true
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -276,12 +269,18 @@ func bingoResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rm.BingoQueue = rm.BingoQueue[1:]
-
 	if ok {
 		rm.BingoOK = true
+		rm.Running = false
+		rm.Paused = true
+		rm.Winner = rm.BingoQueue[0].User
+		rm.WinnerNums = rm.BingoQueue[0].Nums
+		rm.BingoQueue = nil
+		jsonRes(w, map[string]bool{"ok": true})
+		return
 	}
 
+	rm.BingoQueue = rm.BingoQueue[1:]
 	rm.Paused = len(rm.BingoQueue) > 0
 	jsonRes(w, map[string]bool{"ok": true})
 }
@@ -299,27 +298,14 @@ func restartGame(w http.ResponseWriter, r *http.Request) {
 
 	rm.Running = false
 	rm.Paused = false
-	rm.Numbers = nil
-	rm.Called = nil
+	rm.Numbers = newNumbers()
+	rm.Called = []int{}
 	rm.Current = 0
-	rm.BingoQueue = nil
+	rm.BingoQueue = []BingoItem{}
 	rm.BingoOK = false
+	rm.Winner = ""
+	rm.WinnerNums = ""
 
-	jsonRes(w, map[string]bool{"ok": true})
-}
-
-func resumeGame(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	rm := rooms[id]
-	if rm == nil || rm.BingoOK || len(rm.BingoQueue) != 0 {
-		return
-	}
-
-	rm.Paused = false
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -364,7 +350,6 @@ func main() {
 	http.HandleFunc("/rooms/bingo", withCORS(bingo))
 	http.HandleFunc("/rooms/bingo/result", withCORS(bingoResult))
 	http.HandleFunc("/rooms/restart", withCORS(restartGame))
-	http.HandleFunc("/rooms/resume", withCORS(resumeGame))
 
 	log.Println("✅ Backend running at :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
