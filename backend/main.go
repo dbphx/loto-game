@@ -29,8 +29,10 @@ type Room struct {
 	Paused     bool                 `json:"paused"`
 	BingoQueue []BingoItem          `json:"bingoQueue"`
 	BingoOK    bool                 `json:"bingoOK"`
-	Winner     string               `json:"winner"`     // người thắng
-	WinnerNums string               `json:"winnerNums"` // các số BINGO
+	Winner     string               `json:"winner"`
+	WinnerNums string               `json:"winnerNums"`
+
+	ApprovedAt int64 `json:"approvedAt"` // ⭐ NEW: mốc admin approve
 }
 
 var (
@@ -185,6 +187,7 @@ func startRoom(w http.ResponseWriter, r *http.Request) {
 	rm.BingoOK = false
 	rm.Winner = ""
 	rm.WinnerNums = ""
+	rm.ApprovedAt = 0 // ⭐ reset
 	mu.Unlock()
 
 	go func(rm *Room) {
@@ -275,6 +278,7 @@ func bingoResult(w http.ResponseWriter, r *http.Request) {
 		rm.Paused = true
 		rm.Winner = rm.BingoQueue[0].User
 		rm.WinnerNums = rm.BingoQueue[0].Nums
+		rm.ApprovedAt = time.Now().Unix() // ⭐ KEY LINE
 		rm.BingoQueue = nil
 		jsonRes(w, map[string]bool{"ok": true})
 		return
@@ -305,6 +309,7 @@ func restartGame(w http.ResponseWriter, r *http.Request) {
 	rm.BingoOK = false
 	rm.Winner = ""
 	rm.WinnerNums = ""
+	rm.ApprovedAt = 0 // ⭐ reset
 
 	jsonRes(w, map[string]bool{"ok": true})
 }
