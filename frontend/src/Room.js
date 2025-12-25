@@ -8,7 +8,7 @@ export default function Room({ roomId, user, onLeave }) {
   const [bingoResult, setBingoResult] = useState(null);
   const [bingoActive, setBingoActive] = useState(false);
 
-  // ⭐ NEW: thông báo admin approve
+  // ⭐ ADMIN APPROVE NOTICE
   const [approveNotice, setApproveNotice] = useState("");
   const lastApproveRef = useRef(0);
 
@@ -18,7 +18,7 @@ export default function Room({ roomId, user, onLeave }) {
       if (!res.ok) return;
       const data = await res.json();
 
-      // ⭐ REAL-TIME detect admin approve
+      // ⭐ detect ADMIN approve (real-time)
       if (
         data?.approvedAt &&
         data.approvedAt !== lastApproveRef.current
@@ -27,11 +27,8 @@ export default function Room({ roomId, user, onLeave }) {
         setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
       }
 
-      // reset local UI khi game reset
-      if (!data.running && !data.bingoOK && state?.bingoOK) {
-        setBingoNums("");
-        setBingoActive(false);
-        setBingoResult(null);
+      // ⭐ reset notice khi BE reset game (approvedAt = 0)
+      if (!data.approvedAt && lastApproveRef.current !== 0) {
         setApproveNotice("");
         lastApproveRef.current = 0;
       }
@@ -67,10 +64,12 @@ export default function Room({ roomId, user, onLeave }) {
   const isAdmin = state.admin === user;
   const called = state.called || [];
   const queue = state.bingoQueue || [];
-  const myQueueItem = queue.find(q => q.user === user);
+  const myQueueItem = queue.find((q) => q.user === user);
 
   const startBingo = async () => {
-    await fetch(`${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`, { method: "POST" });
+    await fetch(`${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`, {
+      method: "POST",
+    });
     setBingoActive(true);
     setBingoResult("⏸ Game paused, nhập 5 số để báo BINGO");
   };
@@ -78,8 +77,8 @@ export default function Room({ roomId, user, onLeave }) {
   const reportBingo = async () => {
     const nums = bingoNums
       .split(",")
-      .map(n => parseInt(n.trim()))
-      .filter(n => !isNaN(n));
+      .map((n) => parseInt(n.trim()))
+      .filter((n) => !isNaN(n));
 
     if (nums.length !== 5) {
       setBingoResult("❌ Nhập đúng 5 số");
@@ -96,12 +95,16 @@ export default function Room({ roomId, user, onLeave }) {
   };
 
   const approveBingo = async () => {
-    await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=1`, { method: "POST" });
+    await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=1`, {
+      method: "POST",
+    });
     load();
   };
 
   const rejectBingo = async () => {
-    await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=0`, { method: "POST" });
+    await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=0`, {
+      method: "POST",
+    });
     load();
   };
 
@@ -117,7 +120,10 @@ export default function Room({ roomId, user, onLeave }) {
         <button
           style={{ background: "#f44336", color: "#fff" }}
           onClick={async () => {
-            await fetch(`${API}/rooms/leave?id=${roomId}&user=${user}`, { method: "POST" });
+            await fetch(
+              `${API}/rooms/leave?id=${roomId}&user=${user}`,
+              { method: "POST" }
+            );
             localStorage.clear();
             onLeave();
           }}
@@ -310,7 +316,13 @@ export default function Room({ roomId, user, onLeave }) {
       )}
 
       <h3 style={{ marginTop: 30 }}>Called Numbers</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(10, 1fr)",
+          gap: 6,
+        }}
+      >
         {called.map((n) => (
           <div
             key={n}
