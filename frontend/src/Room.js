@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Divider,
+  Stack,
+  Chip,
+} from "@mui/material";
+import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 
 const API = "http://localhost:8080";
 
@@ -8,7 +19,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const [bingoResult, setBingoResult] = useState(null);
   const [bingoActive, setBingoActive] = useState(false);
 
-  // ⭐ ADMIN APPROVE NOTICE
   const [approveNotice, setApproveNotice] = useState("");
   const lastApproveRef = useRef(0);
 
@@ -18,13 +28,11 @@ export default function Room({ roomId, user, secret, onLeave }) {
       if (!res.ok) return;
       const data = await res.json();
 
-      // ⭐ detect admin approve realtime
       if (data?.approvedAt && data.approvedAt !== lastApproveRef.current) {
         lastApproveRef.current = data.approvedAt;
         setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
       }
 
-      // ⭐ reset notice khi restart game
       if (!data?.approvedAt && lastApproveRef.current !== 0) {
         setApproveNotice("");
         lastApproveRef.current = 0;
@@ -37,17 +45,11 @@ export default function Room({ roomId, user, secret, onLeave }) {
   };
 
   useEffect(() => {
-    if (!roomId || !user) return;
-
-    localStorage.setItem("bingo_room", roomId);
-    localStorage.setItem("bingo_user", user);
-
     fetch(`${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`, {
       method: "POST",
     });
 
     load();
-
     const poll = setInterval(load, 1000);
     const ping = setInterval(() => {
       fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, {
@@ -68,11 +70,23 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const queue = state.bingoQueue || [];
   const myQueueItem = queue.find((q) => q.user === user);
 
-  const startBingo = async () => {
-    await fetch(
-      `${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`,
+  // ✅ chỉ cho BINGO khi đã gọi >= 5 số
+  const canBingo = state.running && called.length >= 5;
+
+  /* ================= ACTIONS ================= */
+
+  const startGame = async () => {
+    const res = await fetch(
+      `${API}/rooms/start?id=${roomId}&secret=${secret}`,
       { method: "POST" }
     );
+    if (!res.ok) alert("❌ Wrong secret or game already running");
+  };
+
+  const startBingo = async () => {
+    await fetch(`${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`, {
+      method: "POST",
+    });
     setBingoActive(true);
     setBingoResult("⏸ Game paused, nhập 5 số để báo BINGO");
   };
@@ -113,243 +127,221 @@ export default function Room({ roomId, user, secret, onLeave }) {
   };
 
   const restartGame = async () => {
-    await fetch(`${API}/rooms/restart?id=${roomId}`, {
-      method: "POST",
-    });
+    await fetch(`${API}/rooms/restart?id=${roomId}`, { method: "POST" });
     load();
   };
 
-  const startGame = async () => {
-    const res = await fetch(
-      `${API}/rooms/start?id=${roomId}&secret=${secret}`,
-      { method: "POST" }
-    );
-    if (!res.ok) alert("❌ Wrong secret or game already running");
-  };
+  /* ================= UI ================= */
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <h2>🎱 Room: {roomId}</h2>
-        <button
-          style={{ background: "#f44336", color: "#fff" }}
-          onClick={async () => {
-            await fetch(
-              `${API}/rooms/leave?id=${roomId}&user=${user}`,
-              { method: "POST" }
-            );
-            localStorage.clear();
-            onLeave();
-          }}
-        >
-          Leave
-        </button>
-      </div>
+    <Box sx={{ background: "#f4f6f8", minHeight: "100vh", p: 3 }}>
+      <Card sx={{ maxWidth: 1000, mx: "auto", borderRadius: 3 }}>
+        <CardContent>
+          {/* HEADER */}
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h5" fontWeight="bold">
+              🎱 Room: {roomId}
+            </Typography>
 
-      {/* ⭐ ADMIN APPROVE NOTICE */}
-      {approveNotice && (
-        <div
-          style={{
-            background: "#ff9800",
-            color: "#fff",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            textAlign: "center",
-            fontWeight: "bold",
-          }}
-        >
-          {approveNotice}
-        </div>
-      )}
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<ExitToAppIcon />}
+              onClick={async () => {
+                await fetch(
+                  `${API}/rooms/leave?id=${roomId}&user=${user}`,
+                  { method: "POST" }
+                );
+                onLeave();
+              }}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              Leave
+            </Button>
+          </Stack>
 
-      <p>
-        👑 Admin: <b>{state.admin}</b>
-      </p>
+          <Divider sx={{ my: 2 }} />
 
-      <div
-        style={{
-          width: 120,
-          height: 120,
-          borderRadius: "50%",
-          background: "#ff9800",
-          color: "#fff",
-          fontSize: 36,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          margin: "20px auto",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-        }}
-      >
-        {state.current || "-"}
-      </div>
-
-      {!state.running && isAdmin && !state.bingoOK && (
-        <button
-          style={{
-            padding: "10px 20px",
-            background: "#4caf50",
-            color: "#fff",
-            borderRadius: 6,
-            border: "none",
-          }}
-          onClick={startGame}
-        >
-          ▶ Start Game
-        </button>
-      )}
-
-      {queue.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <h3>📝 BINGO Queue</h3>
-          {queue.map((q, idx) => (
-            <div
-              key={q.user}
-              style={{
-                padding: 8,
-                border: "1px solid #ccc",
-                borderRadius: 6,
-                marginBottom: 6,
+          {/* APPROVE NOTICE */}
+          {approveNotice && (
+            <Box
+              sx={{
+                background: "#ff9800",
+                color: "#fff",
+                p: 1.5,
+                borderRadius: 2,
+                textAlign: "center",
+                fontWeight: "bold",
+                mb: 2,
               }}
             >
-              <b>{q.user}</b> : {q.nums || "đang nhập số"}
-              {isAdmin && idx === 0 && (
-                <div style={{ marginTop: 6 }}>
-                  <button
-                    onClick={approveBingo}
-                    style={{
-                      padding: "6px 12px",
-                      marginRight: 8,
-                      background: "#4caf50",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                    }}
+              {approveNotice}
+            </Box>
+          )}
+
+          {/* CURRENT NUMBER */}
+          <Box textAlign="center" my={3}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Current Number
+            </Typography>
+            <Box
+              sx={{
+                mt: 1,
+                width: 140,
+                height: 140,
+                mx: "auto",
+                borderRadius: "50%",
+                border: "4px solid #1976d2",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 42,
+                fontWeight: "bold",
+                color: "#1976d2",
+              }}
+            >
+              {state.current || "-"}
+            </Box>
+          </Box>
+
+          {/* START GAME */}
+          {!state.running && isAdmin && !state.bingoOK && (
+            <Box textAlign="center" mb={3}>
+              <Button
+                variant="contained"
+                color="success"
+                size="large"
+                onClick={startGame}
+              >
+                ▶ Start Game
+              </Button>
+            </Box>
+          )}
+
+          {/* BINGO QUEUE */}
+          {queue.length > 0 && (
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  📝 BINGO Queue
+                </Typography>
+
+                {queue.map((q, idx) => (
+                  <Box
+                    key={q.user}
+                    sx={{ p: 1, borderBottom: "1px dashed #ccc" }}
                   >
-                    ✅ Approve (WIN)
-                  </button>
-                  <button
-                    onClick={rejectBingo}
-                    style={{
-                      padding: "6px 12px",
-                      background: "#f44336",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 6,
-                    }}
-                  >
-                    ❌ Reject
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                    <Typography>
+                      <b>{q.user}</b> — {q.nums || "đang nhập số"}
+                    </Typography>
 
-      {state.running && !myQueueItem && !bingoActive && (
-        <button
-          style={{
-            padding: "8px 16px",
-            background: "#2196f3",
-            color: "#fff",
-            borderRadius: 6,
-            border: "none",
-            marginTop: 20,
-          }}
-          onClick={startBingo}
-        >
-          🎉 BINGO
-        </button>
-      )}
+                    {isAdmin && idx === 0 && (
+                      <Stack direction="row" spacing={1} mt={1}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          onClick={approveBingo}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          onClick={rejectBingo}
+                        >
+                          Reject
+                        </Button>
+                      </Stack>
+                    )}
+                  </Box>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-      {(myQueueItem || bingoActive) && (
-        <div style={{ marginTop: 10 }}>
-          <input
-            placeholder="VD: 1,12,25,34,90"
-            value={bingoNums}
-            onChange={(e) => setBingoNums(e.target.value)}
-            style={{ width: "100%", padding: 8 }}
-          />
-          <button
-            onClick={reportBingo}
-            style={{
-              marginTop: 8,
-              padding: "8px 16px",
-              background: "#4caf50",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-            }}
-          >
-            📤 Gửi 5 số
-          </button>
-        </div>
-      )}
+          {/* 🎉 BINGO BUTTON (>=5 numbers) */}
+          {canBingo && !myQueueItem && !bingoActive && (
+            <Box textAlign="center" mb={2}>
+              <Button variant="contained" color="primary" onClick={startBingo}>
+                🎉 BINGO
+              </Button>
+            </Box>
+          )}
 
-      {state.bingoOK && state.winner && (
-        <div
-          style={{
-            marginTop: 20,
-            padding: 20,
-            background: "#4caf50",
-            color: "#fff",
-            borderRadius: 10,
-            textAlign: "center",
-            fontSize: 20,
-            fontWeight: "bold",
-          }}
-        >
-          🎉🎉 BINGO !!! 🎉🎉
-          <br />
-          🏆 Winner: <b>{state.winner}</b>
-          <br />
-          🔢 Numbers: {state.winnerNums}
-        </div>
-      )}
+          {(myQueueItem || bingoActive) && (
+            <Box mb={3}>
+              <input
+                value={bingoNums}
+                onChange={(e) => setBingoNums(e.target.value)}
+                placeholder="VD: 1,12,25,34,90"
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 6,
+                  border: "1px solid #ccc",
+                }}
+              />
+              <Button
+                sx={{ mt: 1 }}
+                variant="contained"
+                color="success"
+                onClick={reportBingo}
+              >
+                📤 Gửi 5 số
+              </Button>
+            </Box>
+          )}
 
-      {isAdmin && state.bingoOK && (
-        <div style={{ marginTop: 30 }}>
-          <button
-            onClick={restartGame}
-            style={{
-              padding: "12px 24px",
-              background: "#f44336",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 16,
-            }}
-          >
-            🔄 Reset Game
-          </button>
-        </div>
-      )}
+          {/* WINNER */}
+          {state.bingoOK && (
+            <Card sx={{ background: "#4caf50", color: "#fff", mb: 3 }}>
+              <CardContent sx={{ textAlign: "center" }}>
+                <Typography variant="h6">
+                  🏆 Winner: {state.winner}
+                </Typography>
+                <Typography>🔢 {state.winnerNums}</Typography>
+              </CardContent>
+            </Card>
+          )}
 
-      <h3 style={{ marginTop: 30 }}>Called Numbers</h3>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(10, 1fr)",
-          gap: 6,
-        }}
-      >
-        {called.map((n) => (
-          <div
-            key={n}
-            style={{
-              background: "#e0e0e0",
-              borderRadius: 4,
-              padding: "6px 0",
-              textAlign: "center",
-              fontWeight: "bold",
-            }}
-          >
-            {n}
-          </div>
-        ))}
-      </div>
-    </div>
+          {/* RESET */}
+          {isAdmin && state.bingoOK && (
+            <Box textAlign="center" mb={3}>
+              <Button variant="contained" color="error" onClick={restartGame}>
+                🔄 Reset Game
+              </Button>
+            </Box>
+          )}
+
+          {/* CALLED NUMBERS */}
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                🔢 Called Numbers ({called.length})
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(10, 1fr)",
+                  gap: 1,
+                }}
+              >
+                {called.map((n) => (
+                  <Chip
+                    key={n}
+                    label={n}
+                    sx={{ fontWeight: "bold" }}
+                  />
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }
