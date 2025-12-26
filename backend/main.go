@@ -31,8 +31,9 @@ type Room struct {
 	BingoOK    bool                 `json:"bingoOK"`
 	Winner     string               `json:"winner"`
 	WinnerNums string               `json:"winnerNums"`
+	ApprovedAt int64                `json:"approvedAt"`
 
-	ApprovedAt int64 `json:"approvedAt"` // ⭐ NEW: mốc admin approve
+	Secret string `json:"-"` // ⭐ ROOM PASSWORD
 }
 
 var (
@@ -93,6 +94,7 @@ func listRooms(w http.ResponseWriter, r *http.Request) {
 func createRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	user := r.URL.Query().Get("user")
+	secret := r.URL.Query().Get("secret") // ⭐ NEW
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -105,6 +107,7 @@ func createRoom(w http.ResponseWriter, r *http.Request) {
 	rooms[id] = &Room{
 		ID:       id,
 		Admin:    user,
+		Secret:   secret,
 		Users:    map[string]time.Time{user: time.Now()},
 		Numbers:  newNumbers(),
 		Called:   []int{},
@@ -117,13 +120,19 @@ func createRoom(w http.ResponseWriter, r *http.Request) {
 func joinRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	user := r.URL.Query().Get("user")
+	secret := r.URL.Query().Get("secret")
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	if rm := rooms[id]; rm != nil {
-		rm.Users[user] = time.Now()
+	rm := rooms[id]
+	if rm == nil || rm.Secret != secret {
+		w.WriteHeader(403)
+		jsonRes(w, map[string]bool{"ok": false})
+		return
 	}
+
+	rm.Users[user] = time.Now()
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -170,11 +179,13 @@ func pingRoom(w http.ResponseWriter, r *http.Request) {
 
 func startRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+	secret := r.URL.Query().Get("secret")
 
 	mu.Lock()
 	rm := rooms[id]
-	if rm == nil || rm.Running {
+	if rm == nil || rm.Running || rm.Secret != secret {
 		mu.Unlock()
+		w.WriteHeader(403)
 		return
 	}
 
@@ -187,13 +198,12 @@ func startRoom(w http.ResponseWriter, r *http.Request) {
 	rm.BingoOK = false
 	rm.Winner = ""
 	rm.WinnerNums = ""
-	rm.ApprovedAt = 0 // ⭐ reset
+	rm.ApprovedAt = 0
 	mu.Unlock()
 
 	go func(rm *Room) {
 		for {
 			time.Sleep(time.Duration(rm.Interval) * time.Second)
-
 			mu.Lock()
 			if !rm.Running {
 				mu.Unlock()
@@ -203,7 +213,6 @@ func startRoom(w http.ResponseWriter, r *http.Request) {
 				mu.Unlock()
 				continue
 			}
-
 			rm.Current = rm.Numbers[0]
 			rm.Numbers = rm.Numbers[1:]
 			rm.Called = append(rm.Called, rm.Current)
@@ -278,7 +287,7 @@ func bingoResult(w http.ResponseWriter, r *http.Request) {
 		rm.Paused = true
 		rm.Winner = rm.BingoQueue[0].User
 		rm.WinnerNums = rm.BingoQueue[0].Nums
-		rm.ApprovedAt = time.Now().Unix() // ⭐ KEY LINE
+		rm.ApprovedAt = time.Now().Unix()
 		rm.BingoQueue = nil
 		jsonRes(w, map[string]bool{"ok": true})
 		return
@@ -309,7 +318,7 @@ func restartGame(w http.ResponseWriter, r *http.Request) {
 	rm.BingoOK = false
 	rm.Winner = ""
 	rm.WinnerNums = ""
-	rm.ApprovedAt = 0 // ⭐ reset
+	rm.ApprovedAt = 0
 
 	jsonRes(w, map[string]bool{"ok": true})
 }
@@ -319,7 +328,6 @@ func restartGame(w http.ResponseWriter, r *http.Request) {
 func cleaner() {
 	for {
 		time.Sleep(5 * time.Second)
-
 		mu.Lock()
 		for id, rm := range rooms {
 			for u, t := range rm.Users {

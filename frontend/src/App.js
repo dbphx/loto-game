@@ -7,7 +7,12 @@ export default function App() {
   const [room, setRoom] = useState(null);
 
   return room ? (
-    <Room user={user} roomId={room} onLeave={() => setRoom(null)} />
+    <Room
+      user={user}
+      roomId={room.id}
+      secret={room.secret}
+      onLeave={() => setRoom(null)}
+    />
   ) : (
     <Lobby user={user} onJoin={setRoom} />
   );

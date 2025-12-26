@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const API = "http://localhost:8080";
 
-export default function Room({ roomId, user, onLeave }) {
+export default function Room({ roomId, user, secret, onLeave }) {
   const [state, setState] = useState(null);
   const [bingoNums, setBingoNums] = useState("");
   const [bingoResult, setBingoResult] = useState(null);
@@ -18,17 +18,14 @@ export default function Room({ roomId, user, onLeave }) {
       if (!res.ok) return;
       const data = await res.json();
 
-      // ⭐ detect ADMIN approve (real-time)
-      if (
-        data?.approvedAt &&
-        data.approvedAt !== lastApproveRef.current
-      ) {
+      // ⭐ detect admin approve realtime
+      if (data?.approvedAt && data.approvedAt !== lastApproveRef.current) {
         lastApproveRef.current = data.approvedAt;
         setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
       }
 
-      // ⭐ reset notice khi BE reset game (approvedAt = 0)
-      if (!data.approvedAt && lastApproveRef.current !== 0) {
+      // ⭐ reset notice khi restart game
+      if (!data?.approvedAt && lastApproveRef.current !== 0) {
         setApproveNotice("");
         lastApproveRef.current = 0;
       }
@@ -45,19 +42,24 @@ export default function Room({ roomId, user, onLeave }) {
     localStorage.setItem("bingo_room", roomId);
     localStorage.setItem("bingo_user", user);
 
-    fetch(`${API}/rooms/join?id=${roomId}&user=${user}`, { method: "POST" });
+    fetch(`${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`, {
+      method: "POST",
+    });
 
     load();
+
     const poll = setInterval(load, 1000);
     const ping = setInterval(() => {
-      fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, { method: "POST" });
+      fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, {
+        method: "POST",
+      });
     }, 5000);
 
     return () => {
       clearInterval(poll);
       clearInterval(ping);
     };
-  }, [roomId, user]);
+  }, [roomId, user, secret]);
 
   if (!state) return <p style={{ padding: 20 }}>Loading room...</p>;
 
@@ -67,9 +69,10 @@ export default function Room({ roomId, user, onLeave }) {
   const myQueueItem = queue.find((q) => q.user === user);
 
   const startBingo = async () => {
-    await fetch(`${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`, {
-      method: "POST",
-    });
+    await fetch(
+      `${API}/rooms/bingo?id=${roomId}&user=${user}&nums=`,
+      { method: "POST" }
+    );
     setBingoActive(true);
     setBingoResult("⏸ Game paused, nhập 5 số để báo BINGO");
   };
@@ -89,6 +92,7 @@ export default function Room({ roomId, user, onLeave }) {
       `${API}/rooms/bingo?id=${roomId}&user=${user}&nums=${nums.join(",")}`,
       { method: "POST" }
     );
+
     setBingoNums("");
     setBingoActive(false);
     setBingoResult(`📤 Đã gửi BINGO: ${nums.join(",")}`);
@@ -109,8 +113,18 @@ export default function Room({ roomId, user, onLeave }) {
   };
 
   const restartGame = async () => {
-    await fetch(`${API}/rooms/restart?id=${roomId}`, { method: "POST" });
+    await fetch(`${API}/rooms/restart?id=${roomId}`, {
+      method: "POST",
+    });
     load();
+  };
+
+  const startGame = async () => {
+    const res = await fetch(
+      `${API}/rooms/start?id=${roomId}&secret=${secret}`,
+      { method: "POST" }
+    );
+    if (!res.ok) alert("❌ Wrong secret or game already running");
   };
 
   return (
@@ -180,9 +194,7 @@ export default function Room({ roomId, user, onLeave }) {
             borderRadius: 6,
             border: "none",
           }}
-          onClick={() =>
-            fetch(`${API}/rooms/start?id=${roomId}`, { method: "POST" })
-          }
+          onClick={startGame}
         >
           ▶ Start Game
         </button>
