@@ -19,7 +19,9 @@ export default function Lobby({ user, onJoin }) {
   }, []);
 
   const create = async () => {
-    if (!roomId) return;
+    if (!roomId.trim() || !secret.trim())
+      return alert("Nhập Room ID và Secret");
+
     const res = await fetch(
       `${API}/rooms/create?id=${roomId}&user=${user}&secret=${secret}`,
       { method: "POST" }
@@ -30,12 +32,35 @@ export default function Lobby({ user, onJoin }) {
 
   const join = async (id) => {
     const s = prompt("Enter room secret:");
+    if (!s) return;
     const res = await fetch(
       `${API}/rooms/join?id=${id}&user=${user}&secret=${s}`,
       { method: "POST" }
     );
     if (!res.ok) return alert("❌ Wrong secret");
     onJoin({ id, secret: s });
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 6,
+    border: "1px solid #ccc",
+    fontSize: 14,
+    boxSizing: "border-box",
+  };
+
+  const buttonStyle = {
+    width: "100%",
+    padding: 12,
+    background: "#4caf50",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    fontWeight: "bold",
+    cursor: "pointer",
+    fontSize: 14,
   };
 
   return (
@@ -73,26 +98,15 @@ export default function Lobby({ user, onJoin }) {
             placeholder="Room ID"
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
-            style={{ width: "100%", padding: 8, marginBottom: 8 }}
+            style={inputStyle}
           />
           <input
             placeholder="Secret"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            style={{ width: "100%", padding: 8, marginBottom: 8 }}
+            style={inputStyle}
           />
-          <button
-            onClick={create}
-            style={{
-              width: "100%",
-              padding: 10,
-              background: "#4caf50",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontWeight: "bold",
-            }}
-          >
+          <button onClick={create} style={buttonStyle}>
             ➕ Create Room
           </button>
         </div>
@@ -125,11 +139,13 @@ export default function Lobby({ user, onJoin }) {
               <button
                 onClick={() => join(r.id)}
                 style={{
-                  padding: "6px 14px",
+                  padding: "8px 16px",
                   background: "#2196f3",
                   color: "#fff",
                   border: "none",
                   borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 14,
                 }}
               >
                 Join
