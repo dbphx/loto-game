@@ -10,6 +10,7 @@ import {
   Chip,
 } from "@mui/material";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
+import Chat from "./Chat";
 
 const API = "http://localhost:8080";
 
@@ -22,12 +23,26 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const [approveNotice, setApproveNotice] = useState("");
   const lastApproveRef = useRef(0);
 
+  /* ================= HELPERS ================= */
+
+  const isValidBingoNums = (numsStr) => {
+    if (!numsStr) return false;
+    const nums = numsStr
+      .split(",")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    return nums.length === 5;
+  };
+
+  /* ================= LOAD ROOM ================= */
+
   const load = async () => {
     try {
       const res = await fetch(`${API}/rooms/state?id=${roomId}`);
       if (!res.ok) return;
       const data = await res.json();
 
+      // APPROVE NOTICE
       if (data?.approvedAt && data.approvedAt !== lastApproveRef.current) {
         lastApproveRef.current = data.approvedAt;
         setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
@@ -36,6 +51,13 @@ export default function Room({ roomId, user, secret, onLeave }) {
       if (!data?.approvedAt && lastApproveRef.current !== 0) {
         setApproveNotice("");
         lastApproveRef.current = 0;
+      }
+
+      // ✅ AUTO RESUME FE nếu game đang chạy & queue trống
+      if (data.running && (!data.bingoQueue || data.bingoQueue.length === 0)) {
+        setBingoActive(false);
+        setBingoNums("");
+        setBingoResult(null);
       }
 
       setState(data);
@@ -50,6 +72,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
     });
 
     load();
+
     const poll = setInterval(load, 1000);
     const ping = setInterval(() => {
       fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, {
@@ -70,7 +93,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const queue = state.bingoQueue || [];
   const myQueueItem = queue.find((q) => q.user === user);
 
-  // ✅ chỉ cho BINGO khi đã gọi >= 5 số
+  // chỉ cho BINGO khi đã gọi >= 5 số
   const canBingo = state.running && called.length >= 5;
 
   /* ================= ACTIONS ================= */
@@ -112,22 +135,39 @@ export default function Room({ roomId, user, secret, onLeave }) {
     setBingoResult(`📤 Đã gửi BINGO: ${nums.join(",")}`);
   };
 
-  const approveBingo = async () => {
+  // ❗ APPROVE: bắt buộc đủ 5 số
+  const approveBingo = async (q) => {
+    if (!isValidBingoNums(q?.nums)) {
+      alert("❌ User chưa nhập đủ 5 số");
+      return;
+    }
+
     await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=1`, {
       method: "POST",
     });
+
     load();
   };
 
+  // ✅ REJECT: luôn cho phép + reset FE pause
   const rejectBingo = async () => {
     await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=0`, {
       method: "POST",
     });
+
+    // 🔥 FIX CHÍNH
+    setBingoActive(false);
+    setBingoNums("");
+    setBingoResult(null);
+
     load();
   };
 
   const restartGame = async () => {
     await fetch(`${API}/rooms/restart?id=${roomId}`, { method: "POST" });
+    setBingoActive(false);
+    setBingoNums("");
+    setBingoResult(null);
     load();
   };
 
@@ -155,7 +195,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
                 );
                 onLeave();
               }}
-              sx={{ textTransform: "none", fontWeight: 600 }}
             >
               Leave
             </Button>
@@ -182,9 +221,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
 
           {/* CURRENT NUMBER */}
           <Box textAlign="center" my={3}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Current Number
-            </Typography>
+            <Typography variant="subtitle2">Current Number</Typography>
             <Box
               sx={{
                 mt: 1,
@@ -208,12 +245,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
           {/* START GAME */}
           {!state.running && isAdmin && !state.bingoOK && (
             <Box textAlign="center" mb={3}>
-              <Button
-                variant="contained"
-                color="success"
-                size="large"
-                onClick={startGame}
-              >
+              <Button variant="contained" color="success" onClick={startGame}>
                 ▶ Start Game
               </Button>
             </Box>
@@ -223,15 +255,10 @@ export default function Room({ roomId, user, secret, onLeave }) {
           {queue.length > 0 && (
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  📝 BINGO Queue
-                </Typography>
+                <Typography variant="h6">📝 BINGO Queue</Typography>
 
                 {queue.map((q, idx) => (
-                  <Box
-                    key={q.user}
-                    sx={{ p: 1, borderBottom: "1px dashed #ccc" }}
-                  >
+                  <Box key={q.user} sx={{ p: 1, borderBottom: "1px dashed #ccc" }}>
                     <Typography>
                       <b>{q.user}</b> — {q.nums || "đang nhập số"}
                     </Typography>
@@ -242,7 +269,8 @@ export default function Room({ roomId, user, secret, onLeave }) {
                           variant="contained"
                           color="success"
                           size="small"
-                          onClick={approveBingo}
+                          disabled={!isValidBingoNums(q.nums)}
+                          onClick={() => approveBingo(q)}
                         >
                           Approve
                         </Button>
@@ -262,10 +290,10 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Card>
           )}
 
-          {/* 🎉 BINGO BUTTON (>=5 numbers) */}
+          {/* 🎉 BINGO BUTTON */}
           {canBingo && !myQueueItem && !bingoActive && (
             <Box textAlign="center" mb={2}>
-              <Button variant="contained" color="primary" onClick={startBingo}>
+              <Button variant="contained" onClick={startBingo}>
                 🎉 BINGO
               </Button>
             </Box>
@@ -277,19 +305,9 @@ export default function Room({ roomId, user, secret, onLeave }) {
                 value={bingoNums}
                 onChange={(e) => setBingoNums(e.target.value)}
                 placeholder="VD: 1,12,25,34,90"
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  borderRadius: 6,
-                  border: "1px solid #ccc",
-                }}
+                style={{ width: "100%", padding: 10 }}
               />
-              <Button
-                sx={{ mt: 1 }}
-                variant="contained"
-                color="success"
-                onClick={reportBingo}
-              >
+              <Button sx={{ mt: 1 }} variant="contained" onClick={reportBingo}>
                 📤 Gửi 5 số
               </Button>
             </Box>
@@ -299,9 +317,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
           {state.bingoOK && (
             <Card sx={{ background: "#4caf50", color: "#fff", mb: 3 }}>
               <CardContent sx={{ textAlign: "center" }}>
-                <Typography variant="h6">
-                  🏆 Winner: {state.winner}
-                </Typography>
+                <Typography variant="h6">🏆 Winner: {state.winner}</Typography>
                 <Typography>🔢 {state.winnerNums}</Typography>
               </CardContent>
             </Card>
@@ -309,7 +325,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
 
           {/* RESET */}
           {isAdmin && state.bingoOK && (
-            <Box textAlign="center" mb={3}>
+            <Box textAlign="center">
               <Button variant="contained" color="error" onClick={restartGame}>
                 🔄 Reset Game
               </Button>
@@ -317,31 +333,21 @@ export default function Room({ roomId, user, secret, onLeave }) {
           )}
 
           {/* CALLED NUMBERS */}
-          <Card variant="outlined">
+          <Card variant="outlined" sx={{ mt: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                🔢 Called Numbers ({called.length})
-              </Typography>
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(10, 1fr)",
-                  gap: 1,
-                }}
-              >
+              <Typography variant="h6">🔢 Called Numbers ({called.length})</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 1 }}>
                 {called.map((n) => (
-                  <Chip
-                    key={n}
-                    label={n}
-                    sx={{ fontWeight: "bold" }}
-                  />
+                  <Chip key={n} label={n} />
                 ))}
               </Box>
             </CardContent>
           </Card>
         </CardContent>
       </Card>
+
+      {/* CHAT */}
+      <Chat roomId={roomId} user={user} />
     </Box>
   );
 }
