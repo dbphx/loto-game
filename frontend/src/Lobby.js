@@ -27,17 +27,20 @@ export default function Lobby({ user, onJoin }) {
       { method: "POST" }
     );
     if (!res.ok) return alert("Room exists");
+
     onJoin({ id: roomId, secret });
   };
 
   const join = async (id) => {
     const s = prompt("Enter room secret:");
     if (!s) return;
+
     const res = await fetch(
       `${API}/rooms/join?id=${id}&user=${user}&secret=${s}`,
       { method: "POST" }
     );
     if (!res.ok) return alert("❌ Wrong secret");
+
     onJoin({ id, secret: s });
   };
 
@@ -82,7 +85,9 @@ export default function Lobby({ user, onJoin }) {
           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
         }}
       >
-        <h2 style={{ textAlign: "center", marginBottom: 20 }}>🎱 LOTO LOBBY</h2>
+        <h2 style={{ textAlign: "center", marginBottom: 20 }}>
+          🎱 LOTO LOBBY
+        </h2>
 
         {/* CREATE ROOM */}
         <div
