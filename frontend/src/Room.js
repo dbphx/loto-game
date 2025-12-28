@@ -12,7 +12,10 @@ import {
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import Chat from "./Chat";
 
-const API = "http://localhost:8080";
+/* ================= CONFIG ================= */
+
+// ✅ dùng env, fallback localhost (CHỈ THÊM)
+const API = import.meta.env.VITE_GAME_API || "http://localhost:8080";
 
 export default function Room({ roomId, user, secret, onLeave }) {
   const [state, setState] = useState(null);
@@ -34,15 +37,30 @@ export default function Room({ roomId, user, secret, onLeave }) {
     return nums.length === 5;
   };
 
+  // ✅ chỉ thêm helper, KHÔNG ảnh hưởng logic cũ
+  const clearLocalAndLeave = (msg) => {
+    localStorage.removeItem("loto_room");
+    localStorage.removeItem("loto_user");
+    localStorage.removeItem("loto_secret");
+    if (msg) alert(msg);
+    onLeave();
+  };
+
   /* ================= LOAD ROOM ================= */
 
   const load = async () => {
     try {
       const res = await fetch(`${API}/rooms/state?id=${roomId}`);
       if (!res.ok) return;
+
       const data = await res.json();
 
-      // APPROVE NOTICE
+      // ✅ room đã bị xoá ở BE
+      if (!data) {
+        clearLocalAndLeave("⚠️ Room đã bị xoá");
+        return;
+      }
+
       if (data?.approvedAt && data.approvedAt !== lastApproveRef.current) {
         lastApproveRef.current = data.approvedAt;
         setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
@@ -53,7 +71,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
         lastApproveRef.current = 0;
       }
 
-      // ✅ AUTO RESUME FE nếu game đang chạy & queue trống
       if (data.running && (!data.bingoQueue || data.bingoQueue.length === 0)) {
         setBingoActive(false);
         setBingoNums("");
@@ -66,12 +83,25 @@ export default function Room({ roomId, user, secret, onLeave }) {
     }
   };
 
-  useEffect(() => {
-    fetch(`${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`, {
-      method: "POST",
-    });
+  /* ================= JOIN + POLL ================= */
 
-    load();
+  useEffect(() => {
+    const join = async () => {
+      const res = await fetch(
+        `${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`,
+        { method: "POST" }
+      );
+
+      // ✅ join fail → room ma → xoá local
+      if (!res.ok) {
+        clearLocalAndLeave("❌ Room không tồn tại hoặc đã bị xoá");
+        return;
+      }
+
+      load();
+    };
+
+    join();
 
     const poll = setInterval(load, 1000);
     const ping = setInterval(() => {
@@ -92,8 +122,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const called = state.called || [];
   const queue = state.bingoQueue || [];
   const myQueueItem = queue.find((q) => q.user === user);
-
-  // chỉ cho BINGO khi đã gọi >= 5 số
   const canBingo = state.running && called.length >= 5;
 
   /* ================= ACTIONS ================= */
@@ -135,7 +163,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
     setBingoResult(`📤 Đã gửi BINGO: ${nums.join(",")}`);
   };
 
-  // ❗ APPROVE: bắt buộc đủ 5 số
   const approveBingo = async (q) => {
     if (!isValidBingoNums(q?.nums)) {
       alert("❌ User chưa nhập đủ 5 số");
@@ -149,13 +176,11 @@ export default function Room({ roomId, user, secret, onLeave }) {
     load();
   };
 
-  // ✅ REJECT: luôn cho phép + reset FE pause
   const rejectBingo = async () => {
     await fetch(`${API}/rooms/bingo/result?id=${roomId}&ok=0`, {
       method: "POST",
     });
 
-    // 🔥 FIX CHÍNH
     setBingoActive(false);
     setBingoNums("");
     setBingoResult(null);
@@ -193,7 +218,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
                   `${API}/rooms/leave?id=${roomId}&user=${user}`,
                   { method: "POST" }
                 );
-                onLeave();
+                clearLocalAndLeave();
               }}
             >
               Leave
@@ -242,7 +267,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Box>
           </Box>
 
-          {/* START GAME */}
           {!state.running && isAdmin && !state.bingoOK && (
             <Box textAlign="center" mb={3}>
               <Button variant="contained" color="success" onClick={startGame}>
@@ -251,7 +275,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Box>
           )}
 
-          {/* BINGO QUEUE */}
           {queue.length > 0 && (
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
@@ -290,7 +313,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Card>
           )}
 
-          {/* 🎉 BINGO BUTTON */}
           {canBingo && !myQueueItem && !bingoActive && (
             <Box textAlign="center" mb={2}>
               <Button variant="contained" onClick={startBingo}>
@@ -313,7 +335,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Box>
           )}
 
-          {/* WINNER */}
           {state.bingoOK && (
             <Card sx={{ background: "#4caf50", color: "#fff", mb: 3 }}>
               <CardContent sx={{ textAlign: "center" }}>
@@ -323,7 +344,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Card>
           )}
 
-          {/* RESET */}
           {isAdmin && state.bingoOK && (
             <Box textAlign="center">
               <Button variant="contained" color="error" onClick={restartGame}>
@@ -332,10 +352,11 @@ export default function Room({ roomId, user, secret, onLeave }) {
             </Box>
           )}
 
-          {/* CALLED NUMBERS */}
           <Card variant="outlined" sx={{ mt: 3 }}>
             <CardContent>
-              <Typography variant="h6">🔢 Called Numbers ({called.length})</Typography>
+              <Typography variant="h6">
+                🔢 Called Numbers ({called.length})
+              </Typography>
               <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 1 }}>
                 {called.map((n) => (
                   <Chip key={n} label={n} />
@@ -346,7 +367,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
         </CardContent>
       </Card>
 
-      {/* CHAT */}
       <Chat roomId={roomId} user={user} />
     </Box>
   );

@@ -5,9 +5,12 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 /* ===================== MODELS ===================== */
@@ -136,6 +139,29 @@ func joinRoom(w http.ResponseWriter, r *http.Request) {
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
+func destroyChatRoom(roomID string) {
+	chatServer := os.Getenv("CHAT_SERVER_URL")
+	if chatServer == "" {
+		log.Println("⚠️ CHAT_SERVER_URL not set, skip destroy chat")
+		return
+	}
+
+	req, err := http.NewRequest(
+		http.MethodDelete,
+		chatServer+"/chat/room?room="+roomID,
+		nil,
+	)
+	if err != nil {
+		log.Println("❌ create destroy chat request error:", err)
+		return
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	if _, err := client.Do(req); err != nil {
+		log.Println("❌ destroy chat room error:", err)
+	}
+}
+
 func leaveRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	user := r.URL.Query().Get("user")
@@ -151,7 +177,9 @@ func leaveRoom(w http.ResponseWriter, r *http.Request) {
 	delete(rm.Users, user)
 	if user == rm.Admin {
 		delete(rooms, id)
+		destroyChatRoom(id)
 	}
+
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
@@ -334,6 +362,7 @@ func cleaner() {
 				if time.Since(t) > 15*time.Second {
 					delete(rm.Users, u)
 					if u == rm.Admin {
+						destroyChatRoom(id)
 						delete(rooms, id)
 						break
 					}
@@ -347,6 +376,8 @@ func cleaner() {
 /* ===================== MAIN ===================== */
 
 func main() {
+	_ = godotenv.Load()
+
 	rand.Seed(time.Now().UnixNano())
 	go cleaner()
 
