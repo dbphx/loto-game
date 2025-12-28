@@ -2,47 +2,60 @@ import { useEffect, useState } from "react";
 import Lobby from "./Lobby";
 import Room from "./Room";
 
+// Hàm random 6 ký tự a-z0-9
+const randomSuffix = () => {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let str = "";
+  for (let i = 0; i < 6; i++) {
+    str += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return str;
+};
+
 export default function App() {
-  // 🔥 RESTORE SESSION (CHỈ THÊM)
+  // 🔥 RESTORE SESSION
   const saved = localStorage.getItem("loto_session");
   const parsed = saved ? JSON.parse(saved) : null;
 
-  // ❗ giữ user cũ nếu có, nếu không thì random như cũ
-  const [user] = useState(
-    parsed?.user || "u" + Math.floor(Math.random() * 1000)
+  // User = random6char + displayName
+  const [user, setUser] = useState(
+    parsed?.user || `${randomSuffix()}-${parsed?.displayName || ""}`
   );
+
+  const [displayName, setDisplayName] = useState(parsed?.displayName || "");
 
   const [room, setRoom] = useState(
-    parsed?.roomId
-      ? { id: parsed.roomId, secret: parsed.secret }
-      : null
+    parsed?.roomId ? { id: parsed.roomId, secret: parsed.secret } : null
   );
 
-  // 🔐 sync session (CHỈ THÊM)
+  // 🔐 Sync session
   useEffect(() => {
-    if (room) {
-      localStorage.setItem(
-        "loto_session",
-        JSON.stringify({
-          user,
-          roomId: room.id,
-          secret: room.secret,
-        })
-      );
-    }
-  }, [room, user]);
+    localStorage.setItem(
+      "loto_session",
+      JSON.stringify({
+        user,
+        displayName,
+        roomId: room?.id || null,
+        secret: room?.secret || null,
+      })
+    );
+  }, [user, displayName, room]);
 
   return room ? (
     <Room
       user={user}
+      displayName={displayName}
       roomId={room.id}
       secret={room.secret}
-      onLeave={() => {
-        localStorage.removeItem("loto_session"); // ✅ chỉ xoá khi Leave
-        setRoom(null);
-      }}
+      onLeave={() => setRoom(null)}
     />
   ) : (
-    <Lobby user={user} onJoin={setRoom} />
+    <Lobby
+      user={user}
+      displayName={displayName}
+      setDisplayName={setDisplayName}
+      setUser={setUser}
+      onJoin={setRoom}
+    />
   );
 }
