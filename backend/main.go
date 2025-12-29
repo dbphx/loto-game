@@ -359,7 +359,7 @@ func cleaner() {
 		mu.Lock()
 		for id, rm := range rooms {
 			for u, t := range rm.Users {
-				if time.Since(t) > 15*time.Second {
+				if time.Since(t) > 60*time.Second {
 					delete(rm.Users, u)
 					if u == rm.Admin {
 						destroyChatRoom(id)

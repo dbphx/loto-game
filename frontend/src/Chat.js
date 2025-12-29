@@ -9,6 +9,7 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import ImageIcon from "@mui/icons-material/Image";
 
 const CHAT_API = "http://localhost:8081";
 
@@ -16,58 +17,105 @@ export default function Chat({ roomId, user }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [chats, setChats] = useState([]);
-  const sendingRef = useRef(false);
+  const [sending, setSending] = useState(false); // 🔥 LOCK DUPLICATE SEND
   const endRef = useRef(null);
+  const fileRef = useRef(null);
 
-  /* ========== LOAD CHAT ========== */
+  /* ================= HELPERS ================= */
+
+  const fileToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  /* ================= LOAD CHAT ================= */
+
   const loadChat = async () => {
     try {
-      const res = await fetch(
-        `${CHAT_API}/chat/list?room=${roomId}&limit=50`
-      );
+      const res = await fetch(`${CHAT_API}/chat/list?room=${roomId}`);
       const data = await res.json();
       setChats(data || []);
     } catch (e) {
-      console.error(e);
+      console.error("Load chat error", e);
     }
   };
 
-  /* ========== SEND CHAT (ANTI DUP) ========== */
-  const sendChat = async () => {
-    if (sendingRef.current) return;
+  /* ================= SEND TEXT ================= */
+
+  const sendText = async () => {
+    if (sending) return;
     if (!text.trim()) return;
 
-    sendingRef.current = true;
+    setSending(true);
 
-    await fetch(`${CHAT_API}/chat/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        room: roomId,
-        user,
-        text: text.trim(),
-      }),
-    });
+    try {
+      await fetch(`${CHAT_API}/chat/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room: roomId,
+          user,
+          text: text.trim(),
+        }),
+      });
 
-    setText("");
-    sendingRef.current = false;
-    loadChat();
+      setText("");
+      await loadChat();
+    } catch (e) {
+      console.error("Send text failed", e);
+    } finally {
+      setSending(false);
+    }
   };
 
-  /* ========== EFFECTS ========== */
+  /* ================= SEND IMAGE (BASE64) ================= */
 
-  // poll only when open
+  const sendImage = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    if (sending) return;
+
+    setSending(true);
+
+    try {
+      const base64 = await fileToBase64(file);
+
+      await fetch(`${CHAT_API}/chat/image/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          room: roomId,
+          user,
+          base64,
+        }),
+      });
+
+      fileRef.current.value = "";
+      await loadChat();
+    } catch (e) {
+      console.error("Send image failed", e);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  /* ================= EFFECTS ================= */
+
   useEffect(() => {
     if (!open) return;
+
     loadChat();
     const t = setInterval(loadChat, 1000);
     return () => clearInterval(t);
   }, [open, roomId]);
 
-  // auto scroll
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chats]);
+
+  /* ================= UI ================= */
 
   return (
     <>
@@ -93,7 +141,7 @@ export default function Chat({ roomId, user }) {
       <Drawer anchor="right" open={open} onClose={() => setOpen(false)}>
         <Box
           sx={{
-            width: 320,
+            width: 340,
             p: 2,
             height: "100%",
             display: "flex",
@@ -112,35 +160,82 @@ export default function Chat({ roomId, user }) {
 
           {/* MESSAGES */}
           <Box sx={{ flex: 1, overflowY: "auto" }}>
-            {chats.map((c, i) => (
-              <Typography
-                key={i}
-                sx={{
-                  fontSize: 13,
-                  color: c.user === user ? "#1976d2" : "#000",
-                }}
-              >
-                <b>{c.user}</b>: {c.text}
-              </Typography>
-            ))}
+            {chats.map((c, i) => {
+              const isMe = c.user === user;
+
+              return (
+                <Box
+                  key={i}
+                  sx={{
+                    mb: 1,
+                    display: "flex",
+                    justifyContent: isMe ? "flex-end" : "flex-start",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      maxWidth: "80%",
+                      p: 1,
+                      borderRadius: 2,
+                      background: isMe ? "#1976d2" : "#e0e0e0",
+                      color: isMe ? "#fff" : "#000",
+                    }}
+                  >
+                    <Typography fontSize={11} fontWeight="bold">
+                      {c.user}
+                    </Typography>
+
+                    {c.type === "image" ? (
+                      <img
+                        src={`${CHAT_API}${c.text}`}
+                        style={{
+                          maxWidth: "100%",
+                          borderRadius: 6,
+                          marginTop: 4,
+                        }}
+                        alt="chat-img"
+                      />
+                    ) : (
+                      <Typography fontSize={13}>{c.text}</Typography>
+                    )}
+                  </Box>
+                </Box>
+              );
+            })}
             <div ref={endRef} />
           </Box>
 
           {/* INPUT */}
           <Stack direction="row" spacing={1} mt={1}>
+            <IconButton onClick={() => fileRef.current.click()} disabled={sending}>
+              <ImageIcon />
+            </IconButton>
+
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => sendImage(e.target.files[0])}
+            />
+
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault(); // ⭐ FIX DUP
-                  sendChat();
+                if (e.key === "Enter" && !e.shiftKey && !e.repeat) {
+                  e.preventDefault(); // 🔥 FIX DUPLICATE
+                  sendText();
                 }
               }}
               style={{ flex: 1, padding: 8 }}
-              placeholder="Nhập tin nhắn..."
+              placeholder="Nhập tin nhắn hoặc gửi ảnh..."
+              disabled={sending}
             />
-            <Button onClick={sendChat}>Gửi</Button>
+
+            <Button onClick={sendText} disabled={sending}>
+              Gửi
+            </Button>
           </Stack>
         </Box>
       </Drawer>

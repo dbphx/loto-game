@@ -8,13 +8,15 @@ import {
   Divider,
   Stack,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from "@mui/material";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import Chat from "./Chat";
 
 /* ================= CONFIG ================= */
 
-// ✅ dùng env, fallback localhost (CHỈ THÊM)
 const API = import.meta.env.VITE_GAME_API || "http://localhost:8080";
 
 export default function Room({ roomId, user, secret, onLeave }) {
@@ -25,6 +27,8 @@ export default function Room({ roomId, user, secret, onLeave }) {
 
   const [approveNotice, setApproveNotice] = useState("");
   const lastApproveRef = useRef(0);
+
+  const [openUsers, setOpenUsers] = useState(false);
 
   /* ================= HELPERS ================= */
 
@@ -37,7 +41,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
     return nums.length === 5;
   };
 
-  // ✅ chỉ thêm helper, KHÔNG ảnh hưởng logic cũ
   const clearLocalAndLeave = (msg) => {
     localStorage.removeItem("loto_room");
     localStorage.removeItem("loto_user");
@@ -54,8 +57,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
       if (!res.ok) return;
 
       const data = await res.json();
-
-      // ✅ room đã bị xoá ở BE
       if (!data) {
         clearLocalAndLeave("⚠️ Room đã bị xoá");
         return;
@@ -92,7 +93,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
         { method: "POST" }
       );
 
-      // ✅ join fail → room ma → xoá local
       if (!res.ok) {
         clearLocalAndLeave("❌ Room không tồn tại hoặc đã bị xoá");
         return;
@@ -123,6 +123,10 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const queue = state.bingoQueue || [];
   const myQueueItem = queue.find((q) => q.user === user);
   const canBingo = state.running && called.length >= 5;
+
+  /* ===== USERS ===== */
+  const userList = state.users ? Object.keys(state.users) : [];
+  const playerCount = userList.length;
 
   /* ================= ACTIONS ================= */
 
@@ -206,23 +210,42 @@ export default function Room({ roomId, user, secret, onLeave }) {
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="h5" fontWeight="bold">
               🎱 Room: {roomId}
+              <Typography
+                component="span"
+                sx={{
+                  ml: 1.5,
+                  fontSize: 14,
+                  color: "#1976d2",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+                onClick={() => setOpenUsers(true)}
+              >
+                👥 {playerCount}
+              </Typography>
             </Typography>
 
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<ExitToAppIcon />}
-              onClick={async () => {
-                await fetch(
-                  `${API}/rooms/leave?id=${roomId}&user=${user}`,
-                  { method: "POST" }
-                );
-                clearLocalAndLeave();
-              }}
-            >
-              Leave
-            </Button>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography fontSize={14}>
+                {user} {isAdmin && "👑"}
+              </Typography>
+
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                startIcon={<ExitToAppIcon />}
+                onClick={async () => {
+                  await fetch(
+                    `${API}/rooms/leave?id=${roomId}&user=${user}`,
+                    { method: "POST" }
+                  );
+                  clearLocalAndLeave();
+                }}
+              >
+                Leave
+              </Button>
+            </Stack>
           </Stack>
 
           <Divider sx={{ my: 2 }} />
@@ -276,12 +299,27 @@ export default function Room({ roomId, user, secret, onLeave }) {
           )}
 
           {queue.length > 0 && (
-            <Card variant="outlined" sx={{ mb: 3 }}>
+            <Card
+              variant="outlined"
+              sx={{
+                mb: 3,
+                borderColor: "#ff9800",
+                background: "#fff8e1",
+              }}
+            >
               <CardContent>
                 <Typography variant="h6">📝 BINGO Queue</Typography>
 
                 {queue.map((q, idx) => (
-                  <Box key={q.user} sx={{ p: 1, borderBottom: "1px dashed #ccc" }}>
+                  <Box
+                    key={q.user}
+                    sx={{
+                      p: 1,
+                      borderBottom: "1px dashed #ccc",
+                      background:
+                        idx === 0 ? "rgba(255,152,0,0.15)" : "transparent",
+                    }}
+                  >
                     <Typography>
                       <b>{q.user}</b> — {q.nums || "đang nhập số"}
                     </Typography>
@@ -357,7 +395,13 @@ export default function Room({ roomId, user, secret, onLeave }) {
               <Typography variant="h6">
                 🔢 Called Numbers ({called.length})
               </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 1 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(10, 1fr)",
+                  gap: 1,
+                }}
+              >
                 {called.map((n) => (
                   <Chip key={n} label={n} />
                 ))}
@@ -366,6 +410,25 @@ export default function Room({ roomId, user, secret, onLeave }) {
           </Card>
         </CardContent>
       </Card>
+
+      {/* USERS POPUP */}
+      <Dialog open={openUsers} onClose={() => setOpenUsers(false)}>
+        <DialogTitle>👥 Người chơi trong room</DialogTitle>
+        <DialogContent>
+          {userList.map((u) => (
+            <Typography
+              key={u}
+              sx={{
+                fontWeight: u === user ? "bold" : "normal",
+                color: u === user ? "#1976d2" : "inherit",
+                mb: 0.5,
+              }}
+            >
+              {u} {u === state.admin && "👑"} {u === user && "(you)"}
+            </Typography>
+          ))}
+        </DialogContent>
+      </Dialog>
 
       <Chat roomId={roomId} user={user} />
     </Box>
