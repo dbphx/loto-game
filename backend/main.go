@@ -36,6 +36,8 @@ type Room struct {
 	WinnerNums string               `json:"winnerNums"`
 	ApprovedAt int64                `json:"approvedAt"`
 
+	Lotos map[int]string `json:"lotos"` // ⭐ ADD: lotoID -> user
+
 	Secret string `json:"-"` // ⭐ ROOM PASSWORD
 }
 
@@ -97,7 +99,7 @@ func listRooms(w http.ResponseWriter, r *http.Request) {
 func createRoom(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	user := r.URL.Query().Get("user")
-	secret := r.URL.Query().Get("secret") // ⭐ NEW
+	secret := r.URL.Query().Get("secret")
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -115,6 +117,7 @@ func createRoom(w http.ResponseWriter, r *http.Request) {
 		Numbers:  newNumbers(),
 		Called:   []int{},
 		Interval: 5,
+		Lotos:    map[int]string{}, // ⭐ ADD: init loto map
 	}
 
 	jsonRes(w, map[string]bool{"ok": true})
@@ -175,6 +178,14 @@ func leaveRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	delete(rm.Users, user)
+
+	// ⭐ ADD: remove loto của user khi rời room
+	for k, v := range rm.Lotos {
+		if v == user {
+			delete(rm.Lotos, k)
+		}
+	}
+
 	if user == rm.Admin {
 		delete(rooms, id)
 		destroyChatRoom(id)
@@ -351,6 +362,63 @@ func restartGame(w http.ResponseWriter, r *http.Request) {
 	jsonRes(w, map[string]bool{"ok": true})
 }
 
+/* ===================== LOTO APIs (FIX) ===================== */
+
+func getLotoID(r *http.Request) int {
+	// hỗ trợ cả ?n= và ?loto=
+	if v := r.URL.Query().Get("n"); v != "" {
+		id, _ := strconv.Atoi(v)
+		return id
+	}
+	id, _ := strconv.Atoi(r.URL.Query().Get("loto"))
+	return id
+}
+
+func selectLoto(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	user := r.URL.Query().Get("user")
+	lotoID := getLotoID(r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	rm := rooms[id]
+	if rm == nil {
+		w.WriteHeader(404)
+		return
+	}
+
+	// nếu tờ đã có người khác chọn → cấm
+	if owner, ok := rm.Lotos[lotoID]; ok && owner != user {
+		w.WriteHeader(403)
+		return
+	}
+
+	// cho phép cùng user giữ nhiều tờ
+	rm.Lotos[lotoID] = user
+	jsonRes(w, map[string]bool{"ok": true})
+}
+
+func unselectLoto(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	user := r.URL.Query().Get("user")
+	lotoID := getLotoID(r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	rm := rooms[id]
+	if rm == nil {
+		return
+	}
+
+	if rm.Lotos[lotoID] == user {
+		delete(rm.Lotos, lotoID)
+	}
+
+	jsonRes(w, map[string]bool{"ok": true})
+}
+
 /* ===================== CLEANER ===================== */
 
 func cleaner() {
@@ -394,6 +462,10 @@ func main() {
 	http.HandleFunc("/rooms/bingo", withCORS(bingo))
 	http.HandleFunc("/rooms/bingo/result", withCORS(bingoResult))
 	http.HandleFunc("/rooms/restart", withCORS(restartGame))
+
+	// ⭐ ADD: loto endpoints
+	http.HandleFunc("/rooms/loto/select", withCORS(selectLoto))
+	http.HandleFunc("/rooms/loto/unselect", withCORS(unselectLoto))
 
 	log.Println("✅ Backend running at :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

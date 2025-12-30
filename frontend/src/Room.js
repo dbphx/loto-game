@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import Chat from "./Chat";
+import LotoSelect from "./LotoSelect";
 
 /* ================= CONFIG ================= */
 
@@ -391,6 +392,12 @@ export default function Room({ roomId, user, secret, onLeave }) {
           )}
 
           <Card variant="outlined" sx={{ mt: 3 }}>
+            <LotoSelect
+              roomId={roomId}
+              user={user}
+              state={state}
+              API={API}
+            />
             <CardContent>
               <Typography variant="h6">
                 🔢 Called Numbers ({called.length})
@@ -429,7 +436,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
           ))}
         </DialogContent>
       </Dialog>
-
       <Chat roomId={roomId} user={user} />
     </Box>
   );
