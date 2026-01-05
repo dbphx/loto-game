@@ -18,39 +18,32 @@ import CloseIcon from "@mui/icons-material/Close";
 const LOTO_CDN = "https://stcff2623316212.cloud.insky.io.vn";
 
 /* ================= IMAGE CACHE ================= */
-// 🔥 cache ảnh loto theo index
 const imageCache = {};
 
 const getLotoImage = (index) => {
   if (index === null || index === undefined) return "";
-
   if (!imageCache[index]) {
     const img = new Image();
     img.src = `${LOTO_CDN}/${index + 1}.jpg`;
     imageCache[index] = img;
   }
-
   return imageCache[index].src;
 };
 
 export default function LotoSelect({ roomId, user, state, API }) {
   /* ================= STATE ================= */
-
   const [open, setOpen] = useState(false);
   const [currentLoto, setCurrentLoto] = useState(null);
 
   /* ================= CANVAS ================= */
-
   const canvasRef = useRef(null);
+  const imgRef = useRef(null);
   const drawing = useRef(false);
 
-  // 🔥 paths theo từng loto
   const [pathsByLoto, setPathsByLoto] = useState({});
-
   const paths = pathsByLoto[currentLoto] || [];
 
-  /* ================= PRELOAD ALL IMAGES ================= */
-  // 🔥 load sẵn toàn bộ 16 tờ (1 lần duy nhất)
+  /* ================= PRELOAD IMAGES ================= */
   useEffect(() => {
     Array.from({ length: 16 }).forEach((_, i) => {
       if (!imageCache[i]) {
@@ -61,12 +54,21 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   }, []);
 
-  /* ================= REDRAW ================= */
+  /* ================= SYNC CANVAS SIZE ================= */
+  const syncCanvasSize = () => {
+    if (!canvasRef.current || !imgRef.current) return;
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
 
+    const rect = img.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  };
+
+  /* ================= REDRAW ================= */
   const redraw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -85,10 +87,12 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   };
 
-  // 🔥 FIX: khi mở drawer hoặc đổi tờ → redraw lại
   useEffect(() => {
     if (open) {
-      requestAnimationFrame(redraw);
+      requestAnimationFrame(() => {
+        syncCanvasSize();
+        redraw();
+      });
     }
   }, [open, currentLoto]);
 
@@ -97,39 +101,35 @@ export default function LotoSelect({ roomId, user, state, API }) {
   }, [paths]);
 
   /* ================= DRAW EVENTS ================= */
+  const getPoint = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
 
   const startDraw = (e) => {
     if (!canvasRef.current) return;
-
     drawing.current = true;
-    const rect = canvasRef.current.getBoundingClientRect();
+    const p = getPoint(e);
 
     setPathsByLoto((prev) => ({
       ...prev,
-      [currentLoto]: [
-        ...(prev[currentLoto] || []),
-        [{ x: e.clientX - rect.left, y: e.clientY - rect.top }],
-      ],
+      [currentLoto]: [...(prev[currentLoto] || []), [p]],
     }));
   };
 
   const draw = (e) => {
-    if (!drawing.current || !canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
+    if (!drawing.current) return;
+    const p = getPoint(e);
 
     setPathsByLoto((prev) => {
-      const lotoPaths = prev[currentLoto] || [];
-      const last = lotoPaths[lotoPaths.length - 1];
-
-      const next = [
-        ...last,
-        { x: e.clientX - rect.left, y: e.clientY - rect.top },
-      ];
-
+      const arr = prev[currentLoto] || [];
+      const last = arr[arr.length - 1];
       return {
         ...prev,
-        [currentLoto]: [...lotoPaths.slice(0, -1), next],
+        [currentLoto]: [...arr.slice(0, -1), [...last, p]],
       };
     });
   };
@@ -139,7 +139,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
   };
 
   /* ================= API ================= */
-
   const selectLoto = async () => {
     await fetch(
       `${API}/rooms/loto/select?id=${roomId}&user=${user}&loto=${currentLoto}`,
@@ -159,10 +158,9 @@ export default function LotoSelect({ roomId, user, state, API }) {
     .map(([k]) => Number(k));
 
   /* ================= UI ================= */
-
   return (
     <>
-      {/* ===== GRID CHỌN SỐ (GIỮ NGUYÊN) ===== */}
+      {/* ===== GRID ===== */}
       <Card variant="outlined" sx={{ maxWidth: 1000, mx: "auto", mt: 3 }}>
         <CardContent>
           <Typography variant="h6" mb={2}>
@@ -207,7 +205,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
         </CardContent>
       </Card>
 
-      {/* ===== DRAWER BÊN TRÁI ===== */}
+      {/* ===== DRAWER ===== */}
       <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
         <Box
           sx={{
@@ -218,7 +216,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
             flexDirection: "column",
           }}
         >
-          {/* HEADER */}
           <Stack direction="row" justifyContent="space-between">
             <Typography fontWeight="bold">
               🎴 Tờ #{currentLoto + 1}
@@ -234,14 +231,14 @@ export default function LotoSelect({ roomId, user, state, API }) {
           <Box sx={{ position: "relative", mx: "auto" }}>
             <Box
               component="img"
-              src={getLotoImage(currentLoto)}   // 🔥 dùng cache
+              ref={imgRef}
+              src={getLotoImage(currentLoto)}
               sx={{ width: 320 }}
+              onLoad={syncCanvasSize}
             />
 
             <canvas
               ref={canvasRef}
-              width={320}
-              height={480}
               style={{
                 position: "absolute",
                 top: 0,

@@ -15,6 +15,7 @@ import {
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 import Chat from "./Chat";
 import LotoSelect from "./LotoSelect";
+import CalledNumbers from "./Called";
 
 /* ================= CONFIG ================= */
 
@@ -125,7 +126,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
   const myQueueItem = queue.find((q) => q.user === user);
   const canBingo = state.running && called.length >= 5;
 
-  /* ===== USERS ===== */
   const userList = state.users ? Object.keys(state.users) : [];
   const playerCount = userList.length;
 
@@ -208,29 +208,33 @@ export default function Room({ roomId, user, secret, onLeave }) {
       <Card sx={{ maxWidth: 1000, mx: "auto", borderRadius: 3 }}>
         <CardContent>
           {/* HEADER */}
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h5" fontWeight="bold">
-              🎱 Room: {roomId}
-              <Typography
-                component="span"
-                sx={{
-                  ml: 1.5,
-                  fontSize: 14,
-                  color: "#1976d2",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            flexWrap="wrap"
+            gap={1}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip
+                label={`🎱 ROOM: ${roomId}`}
+                color="primary"
+                sx={{ fontWeight: "bold" }}
+              />
+              <Chip
+                label={`👥 ${playerCount}`}
+                variant="outlined"
                 onClick={() => setOpenUsers(true)}
-              >
-                👥 {playerCount}
-              </Typography>
-            </Typography>
+                sx={{ cursor: "pointer" }}
+              />
+            </Stack>
 
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography fontSize={14}>
-                {user} {isAdmin && "👑"}
-              </Typography>
-
+              <Chip
+                label={isAdmin ? `${user} 👑` : user}
+                color={isAdmin ? "success" : "default"}
+                sx={{ fontWeight: "bold" }}
+              />
               <Button
                 variant="outlined"
                 color="error"
@@ -270,7 +274,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
 
           {/* CURRENT NUMBER */}
           <Box textAlign="center" my={3}>
-            <Typography variant="subtitle2">Current Number</Typography>
+            <Chip label="Current Number" color="warning" sx={{ fontWeight: "bold" }}/>
             <Box
               sx={{
                 mt: 1,
@@ -290,7 +294,6 @@ export default function Room({ roomId, user, secret, onLeave }) {
               {state.current || "-"}
             </Box>
           </Box>
-
           {!state.running && isAdmin && !state.bingoOK && (
             <Box textAlign="center" mb={3}>
               <Button variant="contained" color="success" onClick={startGame}>
@@ -402,17 +405,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
               <Typography variant="h6">
                 🔢 Called Numbers ({called.length})
               </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(10, 1fr)",
-                  gap: 1,
-                }}
-              >
-                {called.map((n) => (
-                  <Chip key={n} label={n} />
-                ))}
-              </Box>
+              <CalledNumbers called={called} />
             </CardContent>
           </Card>
         </CardContent>
@@ -436,6 +429,7 @@ export default function Room({ roomId, user, secret, onLeave }) {
           ))}
         </DialogContent>
       </Dialog>
+
       <Chat roomId={roomId} user={user} />
     </Box>
   );
