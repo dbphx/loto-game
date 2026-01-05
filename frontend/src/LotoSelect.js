@@ -17,6 +17,22 @@ import CloseIcon from "@mui/icons-material/Close";
 
 const LOTO_CDN = "https://stcff2623316212.cloud.insky.io.vn";
 
+/* ================= IMAGE CACHE ================= */
+// 🔥 cache ảnh loto theo index
+const imageCache = {};
+
+const getLotoImage = (index) => {
+  if (index === null || index === undefined) return "";
+
+  if (!imageCache[index]) {
+    const img = new Image();
+    img.src = `${LOTO_CDN}/${index + 1}.jpg`;
+    imageCache[index] = img;
+  }
+
+  return imageCache[index].src;
+};
+
 export default function LotoSelect({ roomId, user, state, API }) {
   /* ================= STATE ================= */
 
@@ -27,7 +43,23 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
   const canvasRef = useRef(null);
   const drawing = useRef(false);
-  const [paths, setPaths] = useState([]);
+
+  // 🔥 paths theo từng loto
+  const [pathsByLoto, setPathsByLoto] = useState({});
+
+  const paths = pathsByLoto[currentLoto] || [];
+
+  /* ================= PRELOAD ALL IMAGES ================= */
+  // 🔥 load sẵn toàn bộ 16 tờ (1 lần duy nhất)
+  useEffect(() => {
+    Array.from({ length: 16 }).forEach((_, i) => {
+      if (!imageCache[i]) {
+        const img = new Image();
+        img.src = `${LOTO_CDN}/${i + 1}.jpg`;
+        imageCache[i] = img;
+      }
+    });
+  }, []);
 
   /* ================= REDRAW ================= */
 
@@ -53,13 +85,12 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   };
 
-  /* 🔥 FIX QUAN TRỌNG */
+  // 🔥 FIX: khi mở drawer hoặc đổi tờ → redraw lại
   useEffect(() => {
     if (open) {
-      // đợi canvas mount xong
-      setTimeout(redraw, 0);
+      requestAnimationFrame(redraw);
     }
-  }, [open]);
+  }, [open, currentLoto]);
 
   useEffect(() => {
     redraw();
@@ -73,10 +104,13 @@ export default function LotoSelect({ roomId, user, state, API }) {
     drawing.current = true;
     const rect = canvasRef.current.getBoundingClientRect();
 
-    setPaths((p) => [
-      ...p,
-      [{ x: e.clientX - rect.left, y: e.clientY - rect.top }],
-    ]);
+    setPathsByLoto((prev) => ({
+      ...prev,
+      [currentLoto]: [
+        ...(prev[currentLoto] || []),
+        [{ x: e.clientX - rect.left, y: e.clientY - rect.top }],
+      ],
+    }));
   };
 
   const draw = (e) => {
@@ -84,13 +118,19 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
     const rect = canvasRef.current.getBoundingClientRect();
 
-    setPaths((p) => {
-      const last = p[p.length - 1];
+    setPathsByLoto((prev) => {
+      const lotoPaths = prev[currentLoto] || [];
+      const last = lotoPaths[lotoPaths.length - 1];
+
       const next = [
         ...last,
         { x: e.clientX - rect.left, y: e.clientY - rect.top },
       ];
-      return [...p.slice(0, -1), next];
+
+      return {
+        ...prev,
+        [currentLoto]: [...lotoPaths.slice(0, -1), next],
+      };
     });
   };
 
@@ -108,20 +148,15 @@ export default function LotoSelect({ roomId, user, state, API }) {
   };
 
   const unselectLoto = async () => {
-    const my = Object.entries(state.lotos || {}).find(
-      ([, u]) => u === user
-    );
-    if (!my) return;
-
     await fetch(
-      `${API}/rooms/loto/unselect?id=${roomId}&user=${user}&loto=${my[0]}`,
+      `${API}/rooms/loto/unselect?id=${roomId}&user=${user}&loto=${currentLoto}`,
       { method: "POST" }
     );
   };
 
-  const myLoto = Object.entries(state.lotos || {}).find(
-    ([, u]) => u === user
-  )?.[0];
+  const myLotos = Object.entries(state.lotos || {})
+    .filter(([, u]) => u === user)
+    .map(([k]) => Number(k));
 
   /* ================= UI ================= */
 
@@ -172,11 +207,11 @@ export default function LotoSelect({ roomId, user, state, API }) {
         </CardContent>
       </Card>
 
-      {/* ===== DRAWER BÊN TRÁI (GIỐNG CHAT) ===== */}
+      {/* ===== DRAWER BÊN TRÁI ===== */}
       <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
         <Box
           sx={{
-            width: 360,
+            width: 380,
             height: "100%",
             p: 2,
             display: "flex",
@@ -199,14 +234,14 @@ export default function LotoSelect({ roomId, user, state, API }) {
           <Box sx={{ position: "relative", mx: "auto" }}>
             <Box
               component="img"
-              src={`${LOTO_CDN}/${currentLoto + 1}.jpg`}
-              sx={{ width: 320, height: 320 }}
+              src={getLotoImage(currentLoto)}   // 🔥 dùng cache
+              sx={{ width: 320 }}
             />
 
             <canvas
               ref={canvasRef}
               width={320}
-              height={320}
+              height={480}
               style={{
                 position: "absolute",
                 top: 0,
@@ -222,10 +257,22 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
           {/* TOOLS */}
           <Stack direction="row" spacing={1} mt={1}>
-            <IconButton onClick={() => setPaths((p) => p.slice(0, -1))}>
+            <IconButton
+              onClick={() =>
+                setPathsByLoto((p) => ({
+                  ...p,
+                  [currentLoto]: (p[currentLoto] || []).slice(0, -1),
+                }))
+              }
+            >
               <UndoIcon />
             </IconButton>
-            <IconButton onClick={() => setPaths([])}>
+
+            <IconButton
+              onClick={() =>
+                setPathsByLoto((p) => ({ ...p, [currentLoto]: [] }))
+              }
+            >
               <DeleteSweepIcon />
             </IconButton>
           </Stack>
@@ -235,16 +282,13 @@ export default function LotoSelect({ roomId, user, state, API }) {
             <Stack direction="row" spacing={2} mt={2}>
               <Button
                 variant="contained"
-                disabled={
-                  !!state.lotos?.[currentLoto] ||
-                  (!!myLoto && myLoto !== currentLoto)
-                }
+                disabled={state.lotos?.[currentLoto]}
                 onClick={selectLoto}
               >
                 Select
               </Button>
 
-              {myLoto !== undefined && (
+              {myLotos.includes(currentLoto) && (
                 <Button color="error" onClick={unselectLoto}>
                   Cancel
                 </Button>
