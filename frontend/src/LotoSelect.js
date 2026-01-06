@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Box,
   Card,
@@ -54,21 +54,25 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   }, []);
 
-  /* ================= SYNC CANVAS SIZE ================= */
+  /* ================= CANVAS SIZE ================= */
   const syncCanvasSize = () => {
     if (!canvasRef.current || !imgRef.current) return;
+
     const canvas = canvasRef.current;
     const img = imgRef.current;
-
     const rect = img.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+
+    if (canvas.width !== rect.width || canvas.height !== rect.height) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
   };
 
   /* ================= REDRAW ================= */
   const redraw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -87,16 +91,17 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   };
 
-  useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() => {
-        syncCanvasSize();
-        redraw();
-      });
-    }
+  /* ================= FIX CHÍNH Ở ĐÂY ================= */
+  useLayoutEffect(() => {
+    if (!open || currentLoto === null) return;
+
+    requestAnimationFrame(() => {
+      syncCanvasSize();
+      redraw();
+    });
   }, [open, currentLoto]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     redraw();
   }, [paths]);
 
@@ -234,7 +239,10 @@ export default function LotoSelect({ roomId, user, state, API }) {
               ref={imgRef}
               src={getLotoImage(currentLoto)}
               sx={{ width: 320 }}
-              onLoad={syncCanvasSize}
+              onLoad={() => {
+                syncCanvasSize();
+                redraw();
+              }}
             />
 
             <canvas
