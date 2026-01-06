@@ -19,7 +19,7 @@ import CalledNumbers from "./Called";
 
 /* ================= CONFIG ================= */
 
-const API = import.meta.env.VITE_GAME_API || "http://localhost:8080";
+const API = process.env.REACT_APP_LOTO_API || "http://localhost:8080";
 
 export default function Room({ roomId, user, secret, onLeave }) {
   const [state, setState] = useState(null);

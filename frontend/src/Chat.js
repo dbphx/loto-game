@@ -11,7 +11,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
 
-const CHAT_API = "http://localhost:8081";
+const CHAT_API = process.env.REACT_APP_CHAT_API || "http://localhost:8081";
 
 export default function Chat({ roomId, user }) {
   const [open, setOpen] = useState(false);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-const API = import.meta.env.VITE_GAME_API || "http://localhost:8080";
+const API = process.env.REACT_APP_LOTO_API || "http://localhost:8080";
 
 // random 6 ký tự a-z0-9
 const randomSuffix = () => {
