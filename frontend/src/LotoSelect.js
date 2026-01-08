@@ -41,11 +41,12 @@ export default function LotoSelect({ roomId, user, state, API }) {
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
   const drawing = useRef(false);
+  const pointerIdRef = useRef(null);
 
   const [pathsByLoto, setPathsByLoto] = useState({});
   const paths = pathsByLoto[currentLoto] || [];
 
-  /* ================= PRELOAD IMAGES ================= */
+  /* ================= PRELOAD ================= */
   useEffect(() => {
     Array.from({ length: 16 }).forEach((_, i) => {
       if (!imageCache[i]) {
@@ -59,10 +60,8 @@ export default function LotoSelect({ roomId, user, state, API }) {
   /* ================= CANVAS SIZE ================= */
   const syncCanvasSize = () => {
     if (!canvasRef.current || !imgRef.current) return;
-
+    const rect = imgRef.current.getBoundingClientRect();
     const canvas = canvasRef.current;
-    const img = imgRef.current;
-    const rect = img.getBoundingClientRect();
 
     if (canvas.width !== rect.width || canvas.height !== rect.height) {
       canvas.width = rect.width;
@@ -74,7 +73,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
   const redraw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -86,14 +84,12 @@ export default function LotoSelect({ roomId, user, state, API }) {
     paths.forEach((path) => {
       ctx.beginPath();
       path.forEach((p, i) => {
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+        i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
       });
       ctx.stroke();
     });
   };
 
-  /* ================= FIX REDRAW ================= */
   useLayoutEffect(() => {
     if (!open || currentLoto === null) return;
     requestAnimationFrame(() => {
@@ -102,9 +98,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   }, [open, currentLoto]);
 
-  useLayoutEffect(() => {
-    redraw();
-  }, [paths]);
+  useLayoutEffect(redraw, [paths]);
 
   /* ================= POINTER DRAW ================= */
   const getPoint = (e) => {
@@ -118,8 +112,11 @@ export default function LotoSelect({ roomId, user, state, API }) {
   const startDraw = (e) => {
     e.preventDefault();
     drawing.current = true;
-    const p = getPoint(e);
+    pointerIdRef.current = e.pointerId;
 
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    const p = getPoint(e);
     setPathsByLoto((prev) => ({
       ...prev,
       [currentLoto]: [...(prev[currentLoto] || []), [p]],
@@ -128,6 +125,8 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
   const draw = (e) => {
     if (!drawing.current) return;
+    if (e.pointerId !== pointerIdRef.current) return;
+
     e.preventDefault();
     const p = getPoint(e);
 
@@ -141,8 +140,10 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   };
 
-  const stopDraw = () => {
+  const stopDraw = (e) => {
+    if (e.pointerId !== pointerIdRef.current) return;
     drawing.current = false;
+    pointerIdRef.current = null;
   };
 
   /* ================= API ================= */
@@ -167,7 +168,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
   /* ================= UI ================= */
   return (
     <>
-      {/* ===== GRID ===== */}
+      {/* GRID */}
       <Card variant="outlined" sx={{ maxWidth: 1000, mx: "auto", mt: 3 }}>
         <CardContent>
           <Typography variant="h6" mb={2}>
@@ -197,7 +198,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
                   sx={{
                     height: 40,
                     fontWeight: "bold",
-                    cursor: "pointer",
                     bgcolor: isMine
                       ? "#4caf50"
                       : isTaken
@@ -212,17 +212,9 @@ export default function LotoSelect({ roomId, user, state, API }) {
         </CardContent>
       </Card>
 
-      {/* ===== DRAWER ===== */}
+      {/* DRAWER */}
       <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
-        <Box
-          sx={{
-            width: 380,
-            height: "100%",
-            p: 2,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <Box sx={{ width: 380, height: "100%", p: 2 }}>
           <Stack direction="row" justifyContent="space-between">
             <Typography fontWeight="bold">
               🎴 Tờ #{currentLoto + 1}
@@ -234,7 +226,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
           <Divider sx={{ my: 1 }} />
 
-          {/* IMAGE + CANVAS */}
           <Box sx={{ position: "relative", mx: "auto" }}>
             <Box
               component="img"
@@ -254,16 +245,16 @@ export default function LotoSelect({ roomId, user, state, API }) {
                 top: 0,
                 left: 0,
                 cursor: "crosshair",
-                touchAction: "none", // 🔥 QUAN TRỌNG CHO MOBILE
+                touchAction: "none",
               }}
               onPointerDown={startDraw}
               onPointerMove={draw}
               onPointerUp={stopDraw}
+              onPointerCancel={stopDraw}
               onPointerLeave={stopDraw}
             />
           </Box>
 
-          {/* TOOLS */}
           <Stack direction="row" spacing={1} mt={1}>
             <IconButton
               onClick={() =>
@@ -285,7 +276,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
             </IconButton>
           </Stack>
 
-          {/* ACTIONS */}
           {!state.running && (
             <Stack direction="row" spacing={2} mt={2}>
               <Button
