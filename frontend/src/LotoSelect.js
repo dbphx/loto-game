@@ -15,7 +15,9 @@ import UndoIcon from "@mui/icons-material/Undo";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CloseIcon from "@mui/icons-material/Close";
 
-const LOTO_CDN = process.env.REACT_APP_LOTO_CDN || "https://stcff2623316212.cloud.insky.io.vn";
+const LOTO_CDN =
+  process.env.REACT_APP_LOTO_CDN ||
+  "https://stcff2623316212.cloud.insky.io.vn";
 
 /* ================= IMAGE CACHE ================= */
 const imageCache = {};
@@ -91,10 +93,9 @@ export default function LotoSelect({ roomId, user, state, API }) {
     });
   };
 
-  /* ================= FIX CHÍNH Ở ĐÂY ================= */
+  /* ================= FIX REDRAW ================= */
   useLayoutEffect(() => {
     if (!open || currentLoto === null) return;
-
     requestAnimationFrame(() => {
       syncCanvasSize();
       redraw();
@@ -105,7 +106,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
     redraw();
   }, [paths]);
 
-  /* ================= DRAW EVENTS ================= */
+  /* ================= POINTER DRAW ================= */
   const getPoint = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     return {
@@ -115,7 +116,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
   };
 
   const startDraw = (e) => {
-    if (!canvasRef.current) return;
+    e.preventDefault();
     drawing.current = true;
     const p = getPoint(e);
 
@@ -127,6 +128,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
 
   const draw = (e) => {
     if (!drawing.current) return;
+    e.preventDefault();
     const p = getPoint(e);
 
     setPathsByLoto((prev) => {
@@ -252,11 +254,12 @@ export default function LotoSelect({ roomId, user, state, API }) {
                 top: 0,
                 left: 0,
                 cursor: "crosshair",
+                touchAction: "none", // 🔥 QUAN TRỌNG CHO MOBILE
               }}
-              onMouseDown={startDraw}
-              onMouseMove={draw}
-              onMouseUp={stopDraw}
-              onMouseLeave={stopDraw}
+              onPointerDown={startDraw}
+              onPointerMove={draw}
+              onPointerUp={stopDraw}
+              onPointerLeave={stopDraw}
             />
           </Box>
 
