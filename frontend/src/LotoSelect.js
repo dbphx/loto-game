@@ -17,7 +17,7 @@ import CloseIcon from "@mui/icons-material/Close";
 
 const LOTO_CDN =
   process.env.REACT_APP_LOTO_CDN ||
-  "https://stcff2623316212.cloud.insky.io.vn";
+  "http://stcff2623316212.cloud.insky.io.vn";
 
 /* ================= IMAGE CACHE ================= */
 const imageCache = {};
