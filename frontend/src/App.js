@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Lobby from "./Lobby";
 import Room from "./Room";
+import RoomV2 from "./RoomV2";
 
 // Hàm random 6 ký tự a-z0-9
 const randomSuffix = () => {
@@ -42,7 +43,7 @@ export default function App() {
   }, [user, displayName, room]);
 
   return room ? (
-    <Room
+    <RoomV2
       user={user}
       displayName={displayName}
       roomId={room.id}
