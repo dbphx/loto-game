@@ -1,5 +1,6 @@
-import { Stack, Chip, Button } from "@mui/material";
+import { Stack, Chip, Button, Menu, MenuItem } from "@mui/material";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
+import { useState } from "react";
 
 export default function RoomHeader({
   roomId,
@@ -12,11 +13,20 @@ export default function RoomHeader({
 }) {
   const playerCount = state.users ? Object.keys(state.users).length : 0;
 
+  const [anchorEl, setAnchorEl] = useState(null);
+
   const leaveRoom = async () => {
     await fetch(`${API}/rooms/leave?id=${roomId}&user=${user}`, {
       method: "POST",
     });
     onLeave();
+  };
+
+  const setIntervalValue = async (v) => {
+    await fetch(`${API}/rooms/interval?id=${roomId}&v=${v}`, {
+      method: "POST",
+    });
+    setAnchorEl(null);
   };
 
   return (
@@ -51,8 +61,38 @@ export default function RoomHeader({
           sx={{ fontWeight: "bold" }}
         />
 
+        {/* INTERVAL SETTING (ADMIN ONLY) */}
+        {isAdmin && (
+          <>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{ fontWeight: "bold" }}
+            >
+              ⏱ {state.interval}s
+            </Button>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={() => setAnchorEl(null)}
+            >
+              {[2, 3, 5, 8, 10].map((v) => (
+                <MenuItem
+                  key={v}
+                  selected={state.interval === v}
+                  onClick={() => setIntervalValue(v)}
+                >
+                  {v} giây
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
+        )}
+
         <Button
-          variant="outlined"        // ✅ border restored
+          variant="outlined"
           color="error"
           size="small"
           startIcon={<ExitToAppIcon />}
