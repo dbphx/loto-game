@@ -14,7 +14,7 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-
+	log.Println("Service run main new")
 	rand.Seed(time.Now().UnixNano())
 	go services.Cleaner()
 
