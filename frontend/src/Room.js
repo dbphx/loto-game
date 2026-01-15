@@ -22,8 +22,6 @@ import CalledNumbers from "./Called";
 const API = process.env.REACT_APP_LOTO_API || "http://localhost:8080";
 
 export default function Room({ roomId, user, secret, onLeave }) {
-  console.log("-----------1--------")
-
   const [state, setState] = useState(null);
   const [bingoNums, setBingoNums] = useState("");
   const [bingoResult, setBingoResult] = useState(null);

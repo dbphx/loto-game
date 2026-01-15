@@ -19,10 +19,6 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
 
   const [bingoNums, setBingoNums] = useState("");
   const [bingoActive, setBingoActive] = useState(false);
-  const [bingoResult, setBingoResult] = useState(null);
-
-  const [approveNotice, setApproveNotice] = useState("");
-  const lastApproveRef = useRef(0);
 
   const mountedRef = useRef(true);
 
@@ -34,19 +30,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
       if (!res.ok) return;
 
       const data = await res.json();
-      if (!data) return; // ❗ KHÔNG onLeave ở đây (tránh race)
-
-      if (!mountedRef.current) return;
-
-      if (data.approvedAt && data.approvedAt !== lastApproveRef.current) {
-        lastApproveRef.current = data.approvedAt;
-        setApproveNotice(`🏆 ADMIN APPROVED: ${data.winner}`);
-      }
-
-      if (!data.approvedAt && lastApproveRef.current !== 0) {
-        lastApproveRef.current = 0;
-        setApproveNotice("");
-      }
+      if (!data || !mountedRef.current) return;
 
       setState(data);
     } catch (e) {
@@ -59,7 +43,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   useEffect(() => {
     mountedRef.current = true;
 
-    const joinAndStart = async () => {
+    const join = async () => {
       const res = await fetch(
         `${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`,
         { method: "POST" }
@@ -70,15 +54,12 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
         return;
       }
 
-      await load();
+      load();
     };
 
-    joinAndStart();
+    join();
 
-    const poll = setInterval(() => {
-      if (mountedRef.current) load();
-    }, 1000);
-
+    const poll = setInterval(load, 1000);
     const ping = setInterval(() => {
       fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, {
         method: "POST",
@@ -95,6 +76,10 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   if (!state) return <p style={{ padding: 20 }}>Loading room...</p>;
 
   const isAdmin = state.admin === user;
+
+  // ✅ legacy condition
+  const canStartGame = isAdmin && !state.running && !state.winner;
+  const canResetGame = isAdmin && !!state.winner;
 
   /* ================= UI ================= */
 
@@ -114,16 +99,28 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
 
           <Divider sx={{ my: 2 }} />
 
-          <CurrentNumber
-            number={state.current}
-            isAdmin={isAdmin}
-            running={state.running}
-            onStart={() =>
-              fetch(`${API}/rooms/start?id=${roomId}&secret=${secret}`, {
-                method: "POST",
-              })
-            }
-          />
+          {/* ✅ START GAME — chỉ hiện khi chưa có winner */}
+          {canStartGame && (
+            <CurrentNumber
+              number={state.current}
+              isAdmin={isAdmin}
+              running={state.running}
+              onStart={() =>
+                fetch(`${API}/rooms/start?id=${roomId}&secret=${secret}`, {
+                  method: "POST",
+                })
+              }
+            />
+          )}
+
+          {/* 🎯 CURRENT NUMBER khi game đang chạy */}
+          {state.running && (
+            <CurrentNumber
+              number={state.current}
+              isAdmin={false}
+              running={state.running}
+            />
+          )}
 
           <BingoQueue
             state={state}
@@ -141,15 +138,40 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
             setBingoNums={setBingoNums}
             bingoActive={bingoActive}
             setBingoActive={setBingoActive}
-            setBingoResult={setBingoResult}
           />
 
+
+          {/* 🏆 WINNER */}
           <WinnerCard
-            state={state}
-            isAdmin={isAdmin}
-            API={API}
-            roomId={roomId}
+            winner={state.winner}
+            nums={state.winnerNums}
           />
+
+          {/* 🔄 RESET GAME — chỉ hiện khi đã có winner */}
+          {canResetGame && (
+            <Box textAlign="center" mb={2}>
+              <button
+                onClick={async () => {
+                  await fetch(`${API}/rooms/restart?id=${roomId}`, {
+                    method: "POST",
+                  });
+                  setBingoNums("");
+                  setBingoActive(false);
+                  load();
+                }}
+                style={{
+                  padding: "10px 20px",
+                  background: "#d32f2f",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                🔄 Reset Game
+              </button>
+            </Box>
+          )}
 
           <LotoSelect
             roomId={roomId}
