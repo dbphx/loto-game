@@ -77,7 +77,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
 
   const isAdmin = state.admin === user;
 
-  // ✅ legacy condition
+  // legacy rules
   const canStartGame = isAdmin && !state.running && !state.winner;
   const canResetGame = isAdmin && !!state.winner;
 
@@ -99,29 +99,22 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* ✅ START GAME — chỉ hiện khi chưa có winner */}
-          {canStartGame && (
-            <CurrentNumber
-              number={state.current}
-              isAdmin={isAdmin}
-              running={state.running}
-              onStart={() =>
-                fetch(`${API}/rooms/start?id=${roomId}&secret=${secret}`, {
-                  method: "POST",
-                })
-              }
-            />
-          )}
-
-          {/* 🎯 CURRENT NUMBER khi game đang chạy */}
-          {state.running && (
-            <CurrentNumber
-              number={state.current}
-              isAdmin={false}
-              running={state.running}
-            />
-          )}
-
+          {/* 🎯 CURRENT NUMBER — LUÔN HIỆN */}
+          <CurrentNumber
+            number={state.current}
+            running={state.running}
+            isAdmin={canStartGame}
+            onStart={
+              canStartGame
+                ? () =>
+                    fetch(
+                      `${API}/rooms/start?id=${roomId}&secret=${secret}`,
+                      { method: "POST" }
+                    )
+                : undefined
+            }
+          />
+          
           <BingoQueue
             state={state}
             isAdmin={isAdmin}
@@ -140,14 +133,13 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
             setBingoActive={setBingoActive}
           />
 
-
           {/* 🏆 WINNER */}
           <WinnerCard
             winner={state.winner}
             nums={state.winnerNums}
           />
 
-          {/* 🔄 RESET GAME — chỉ hiện khi đã có winner */}
+          {/* 🔄 RESET GAME — chỉ hiện khi có winner */}
           {canResetGame && (
             <Box textAlign="center" mb={2}>
               <button
