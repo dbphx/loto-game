@@ -10,14 +10,19 @@ import {
   Drawer,
   IconButton,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import UndoIcon from "@mui/icons-material/Undo";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CloseIcon from "@mui/icons-material/Close";
 
+/* ================= CONFIG ================= */
 const LOTO_CDN =
   process.env.REACT_APP_LOTO_CDN ||
   "https://stcff2623316212.cloud.insky.io.vn";
+
+const SHORT_NAME_ENABLED = true; // 🔥 OPTION
+const SHORT_NAME_LENGTH = 8;
 
 /* ================= IMAGE CACHE ================= */
 const imageCache = {};
@@ -30,6 +35,15 @@ const getLotoImage = (index) => {
     imageCache[index] = img;
   }
   return imageCache[index].src;
+};
+
+/* ================= HELPERS ================= */
+const shortUser = (u) => {
+  if (!u) return "";
+  if (!SHORT_NAME_ENABLED) return u;
+  return u.length > SHORT_NAME_LENGTH
+    ? u.slice(0, SHORT_NAME_LENGTH) + "…"
+    : u;
 };
 
 export default function LotoSelect({ roomId, user, state, API }) {
@@ -62,11 +76,8 @@ export default function LotoSelect({ roomId, user, state, API }) {
     if (!canvasRef.current || !imgRef.current) return;
     const rect = imgRef.current.getBoundingClientRect();
     const canvas = canvasRef.current;
-
-    if (canvas.width !== rect.width || canvas.height !== rect.height) {
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-    }
+    canvas.width = rect.width;
+    canvas.height = rect.height;
   };
 
   /* ================= REDRAW ================= */
@@ -113,7 +124,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
     e.preventDefault();
     drawing.current = true;
     pointerIdRef.current = e.pointerId;
-
     e.currentTarget.setPointerCapture(e.pointerId);
 
     const p = getPoint(e);
@@ -168,7 +178,6 @@ export default function LotoSelect({ roomId, user, state, API }) {
   /* ================= UI ================= */
   return (
     <>
-      {/* GRID */}
       <Card variant="outlined" sx={{ maxWidth: 1000, mx: "auto", mt: 3 }}>
         <CardContent>
           <Typography variant="h6" mb={2}>
@@ -178,7 +187,7 @@ export default function LotoSelect({ roomId, user, state, API }) {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "repeat(8, 1fr)",
+              gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
               gap: 1.2,
             }}
           >
@@ -187,25 +196,41 @@ export default function LotoSelect({ roomId, user, state, API }) {
               const isMine = owner === user;
               const isTaken = !!owner;
 
+              const label = owner
+                ? `#${i + 1} (${shortUser(owner)})`
+                : `#${i + 1}`;
+
               return (
-                <Chip
-                  key={i}
-                  label={owner ? `#${i + 1} (${owner})` : `#${i + 1}`}
-                  onClick={() => {
-                    setCurrentLoto(i);
-                    setOpen(true);
-                  }}
-                  sx={{
-                    height: 40,
-                    fontWeight: "bold",
-                    bgcolor: isMine
-                      ? "#4caf50"
-                      : isTaken
-                      ? "#e0e0e0"
-                      : "#1976d2",
-                    color: isTaken && !isMine ? "#555" : "#fff",
-                  }}
-                />
+                <Tooltip key={i} title={owner || ""}>
+                  <Chip
+                    label={label}
+                    onClick={() => {
+                      setCurrentLoto(i);
+                      setOpen(true);
+                    }}
+                    sx={{
+                      height: 40,
+                      fontWeight: "bold",
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+
+                      "& .MuiChip-label": {
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "100%",
+                      },
+
+                      bgcolor: isMine
+                        ? "#4caf50"
+                        : isTaken
+                        ? "#e0e0e0"
+                        : "#1976d2",
+                      color: isTaken && !isMine ? "#555" : "#fff",
+                    }}
+                  />
+                </Tooltip>
               );
             })}
           </Box>
