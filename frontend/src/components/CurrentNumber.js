@@ -17,6 +17,7 @@ export default function CurrentNumber({
     if (number === lastRef.current) return;
 
     lastRef.current = number;
+    console.log(voiceOn)
     speak(`${number}`);
   }, [number, voiceOn]);
 

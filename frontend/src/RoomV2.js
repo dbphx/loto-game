@@ -144,6 +144,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
           <WinnerCard
             winner={state.winner}
             nums={state.winnerNums}
+            voiceOn={voiceOn}
           />
 
           {/* 🔄 RESET GAME — chỉ hiện khi có winner */}

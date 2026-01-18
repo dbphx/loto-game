@@ -1,24 +1,40 @@
 import { Card, CardContent, Typography, Button, Box } from "@mui/material";
 import Confetti from "react-confetti";
 import { useEffect, useState } from "react";
+import { playWinSound, stopWinSound } from "../utils/winsound";
 
-export default function WinnerCard({ winner, nums, isAdmin, onReset }) {
+export default function WinnerCard({
+  winner,
+  nums,
+  isAdmin,
+  onReset,
+  voiceOn,
+}) {
   const [showFx, setShowFx] = useState(false);
 
-  // 🔥 BẬT confetti khi có winner, TẮT khi reset (winner = null)
   useEffect(() => {
-    setShowFx(!!winner);
-  }, [winner]);
+    if (winner) {
+      setShowFx(true);
+
+      if (voiceOn) {
+        playWinSound();
+      }
+    } else {
+      setShowFx(false);
+      stopWinSound();
+    }
+
+    return () => stopWinSound();
+  }, [winner, voiceOn]);
 
   if (!winner) return null;
 
   return (
     <>
-      {/* 🎉 CONFETTI – chạy liên tục tới reset */}
       {showFx && (
         <Confetti
           numberOfPieces={320}
-          recycle={true}          // ✅ loop vô hạn
+          recycle
           gravity={0.15}
         />
       )}
@@ -38,17 +54,11 @@ export default function WinnerCard({ winner, nums, isAdmin, onReset }) {
         }}
       >
         <CardContent sx={{ textAlign: "center", py: 4 }}>
-          <Typography
-            variant="h4"
-            sx={{ fontWeight: 900, letterSpacing: 1 }}
-          >
+          <Typography variant="h4" sx={{ fontWeight: 900 }}>
             🏆 WINNER
           </Typography>
 
-          <Typography
-            variant="h5"
-            sx={{ mt: 1, fontWeight: 700 }}
-          >
+          <Typography variant="h5" sx={{ mt: 1, fontWeight: 700 }}>
             {winner}
           </Typography>
 
@@ -62,12 +72,11 @@ export default function WinnerCard({ winner, nums, isAdmin, onReset }) {
               display: "inline-block",
             }}
           >
-            <Typography sx={{ fontSize: 18, letterSpacing: 1 }}>
+            <Typography sx={{ fontSize: 18 }}>
               🔢 {Array.isArray(nums) ? nums.join(", ") : nums}
             </Typography>
           </Box>
 
-          {/* 🔄 RESET GAME – chỉ admin */}
           {isAdmin && (
             <Box sx={{ mt: 3 }}>
               <Button
@@ -78,7 +87,6 @@ export default function WinnerCard({ winner, nums, isAdmin, onReset }) {
                   px: 4,
                   fontWeight: 800,
                   borderRadius: 3,
-                  boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
                 }}
               >
                 🔄 Reset Game
