@@ -1,6 +1,16 @@
-import { Stack, Chip, Button, Menu, MenuItem } from "@mui/material";
+import {
+  Stack,
+  Chip,
+  Button,
+  Menu,
+  MenuItem,
+  IconButton,
+  Tooltip,
+} from "@mui/material";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
-import { useState } from "react";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
+import { useEffect, useState } from "react";
 
 export default function RoomHeader({
   roomId,
@@ -10,10 +20,13 @@ export default function RoomHeader({
   onLeave,
   onShowUsers,
   API,
+  voiceOn,
+  setVoiceOn,
 }) {
   const playerCount = state.users ? Object.keys(state.users).length : 0;
-
   const [anchorEl, setAnchorEl] = useState(null);
+
+  /* ================= ACTIONS ================= */
 
   const leaveRoom = async () => {
     await fetch(`${API}/rooms/leave?id=${roomId}&user=${user}`, {
@@ -29,6 +42,8 @@ export default function RoomHeader({
     setAnchorEl(null);
   };
 
+  /* ================= RENDER ================= */
+
   return (
     <Stack
       direction="row"
@@ -36,6 +51,7 @@ export default function RoomHeader({
       alignItems="center"
       flexWrap="wrap"
       gap={1}
+      sx={{ mb: 1 }}
     >
       {/* LEFT */}
       <Stack direction="row" spacing={1} alignItems="center">
@@ -55,13 +71,25 @@ export default function RoomHeader({
 
       {/* RIGHT */}
       <Stack direction="row" spacing={1} alignItems="center">
+        {/* VOICE TOGGLE */}
+        <Tooltip title={voiceOn ? "Tắt giọng đọc" : "Bật giọng đọc"}>
+          <IconButton
+            size="small"
+            color={voiceOn ? "success" : "default"}
+            onClick={() => setVoiceOn((v) => !v)}
+          >
+            {voiceOn ? <VolumeUpIcon /> : <VolumeOffIcon />}
+          </IconButton>
+        </Tooltip>
+
+        {/* USER */}
         <Chip
           label={isAdmin ? `${user} 👑` : user}
           color={isAdmin ? "success" : "default"}
           sx={{ fontWeight: "bold" }}
         />
 
-        {/* INTERVAL SETTING (ADMIN ONLY) */}
+        {/* INTERVAL (ADMIN ONLY) */}
         {isAdmin && (
           <>
             <Button
@@ -91,16 +119,14 @@ export default function RoomHeader({
           </>
         )}
 
+        {/* LEAVE */}
         <Button
           variant="outlined"
           color="error"
           size="small"
           startIcon={<ExitToAppIcon />}
           onClick={leaveRoom}
-          sx={{
-            borderWidth: 1.5,
-            fontWeight: "bold",
-          }}
+          sx={{ fontWeight: "bold" }}
         >
           Leave
         </Button>

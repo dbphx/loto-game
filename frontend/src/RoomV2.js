@@ -20,6 +20,9 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   const [bingoNums, setBingoNums] = useState("");
   const [bingoActive, setBingoActive] = useState(false);
 
+  /* 🔊 VOICE – DÙNG CHUNG TOÀN ROOM */
+  const [voiceOn, setVoiceOn] = useState(true);
+
   const mountedRef = useRef(true);
 
   /* ================= LOAD ROOM ================= */
@@ -95,6 +98,8 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
             onLeave={onLeave}
             onShowUsers={() => setOpenUsers(true)}
             API={API}
+            voiceOn={voiceOn}
+            setVoiceOn={setVoiceOn}
           />
 
           <Divider sx={{ my: 2 }} />
@@ -113,8 +118,9 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
                     )
                 : undefined
             }
+            voiceOn={voiceOn}
           />
-          
+
           <BingoQueue
             state={state}
             isAdmin={isAdmin}
@@ -131,6 +137,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
             setBingoNums={setBingoNums}
             bingoActive={bingoActive}
             setBingoActive={setBingoActive}
+            voiceOn={voiceOn}
           />
 
           {/* 🏆 WINNER */}
