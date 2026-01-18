@@ -24,4 +24,6 @@ func RegisterRoutes() {
 
 	http.HandleFunc("/rooms/loto/select", utils.WithCORS(handlers.SelectLoto))
 	http.HandleFunc("/rooms/loto/unselect", utils.WithCORS(handlers.UnselectLoto))
+
+	http.HandleFunc("/rooms/force-number", utils.WithCORS(handlers.ForceNumberHandler))
 }

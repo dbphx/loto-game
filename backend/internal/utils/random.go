@@ -9,3 +9,22 @@ func NewNumbers() []int {
 	}
 	return nums
 }
+
+func ContainsInt(arr []int, v int) bool {
+	for _, x := range arr {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+func RemoveInt(arr []int, v int) []int {
+	out := arr[:0]
+	for _, x := range arr {
+		if x != v {
+			out = append(out, x)
+		}
+	}
+	return out
+}

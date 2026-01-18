@@ -25,4 +25,6 @@ type Room struct {
 
 	Lotos  map[int]string `json:"lotos"`
 	Secret string         `json:"-"`
+
+	NextForce int `json:"-"`
 }
