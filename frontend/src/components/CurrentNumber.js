@@ -9,16 +9,25 @@ export default function CurrentNumber({
   onStart,
   voiceOn,
 }) {
-  const lastRef = useRef(null);
+  const lastNumberRef = useRef(null);
+  const lastSpeakAtRef = useRef(0);
 
   useEffect(() => {
     if (!voiceOn) return;
     if (!number) return;
-    if (number === lastRef.current) return;
 
-    lastRef.current = number;
-    console.log(voiceOn)
-    speak(`${number}`);
+    // 🔒 chặn đọc trùng số
+    if (number === lastNumberRef.current) return;
+
+    const now = Date.now();
+
+    // 🔒 chặn StrictMode gọi effect 2 lần
+    if (now - lastSpeakAtRef.current < 500) return;
+
+    lastNumberRef.current = number;
+    lastSpeakAtRef.current = now;
+
+    speak(String(number));
   }, [number, voiceOn]);
 
   return (
@@ -57,7 +66,6 @@ export default function CurrentNumber({
         </Box>
       </Box>
 
-      {/* ▶ START GAME */}
       {!running && isAdmin && (
         <Box textAlign="center" mb={3}>
           <Button variant="contained" color="success" onClick={onStart}>
