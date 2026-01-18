@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"my-source/loto-full/backend/internal/app"
+	"my-source/loto-full/backend/internal/db"
 	"my-source/loto-full/backend/internal/services"
 
 	"github.com/joho/godotenv"
@@ -19,6 +20,7 @@ func main() {
 	go services.Cleaner()
 
 	app.RegisterRoutes()
+	db.InitPostgres()
 
 	log.Println("✅ Backend running at :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

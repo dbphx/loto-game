@@ -20,20 +20,23 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   const [bingoNums, setBingoNums] = useState("");
   const [bingoActive, setBingoActive] = useState(false);
 
-  /* 🔊 VOICE – DÙNG CHUNG TOÀN ROOM */
+  /* 🔊 VOICE – TOÀN ROOM */
   const [voiceOn, setVoiceOn] = useState(true);
 
-  const mountedRef = useRef(true);
+  const mountedRef = useRef(false);
 
-  /* ================= LOAD ROOM ================= */
+  /* ================= LOAD ROOM STATE ================= */
 
   const load = async () => {
     try {
       const res = await fetch(`${API}/rooms/state?id=${roomId}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        onLeave(); // room bị xóa hoặc lỗi
+        return;
+      }
 
       const data = await res.json();
-      if (!data || !mountedRef.current) return;
+      if (!mountedRef.current || !data) return;
 
       setState(data);
     } catch (e) {
@@ -41,28 +44,15 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
     }
   };
 
-  /* ================= JOIN + POLL ================= */
+  /* ================= POLL + PING (NO JOIN) ================= */
 
   useEffect(() => {
     mountedRef.current = true;
 
-    const join = async () => {
-      const res = await fetch(
-        `${API}/rooms/join?id=${roomId}&user=${user}&secret=${secret}`,
-        { method: "POST" }
-      );
-
-      if (!res.ok) {
-        onLeave();
-        return;
-      }
-
-      load();
-    };
-
-    join();
+    load();
 
     const poll = setInterval(load, 1000);
+
     const ping = setInterval(() => {
       fetch(`${API}/rooms/ping?id=${roomId}&user=${user}`, {
         method: "POST",
@@ -74,13 +64,14 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
       clearInterval(poll);
       clearInterval(ping);
     };
-  }, [roomId, user, secret]);
+  }, [roomId, user]);
 
-  if (!state) return <p style={{ padding: 20 }}>Loading room...</p>;
+  if (!state) {
+    return <p style={{ padding: 20 }}>Loading room...</p>;
+  }
 
   const isAdmin = state.admin === user;
 
-  // legacy rules
   const canStartGame = isAdmin && !state.running && !state.winner;
   const canResetGame = isAdmin && !!state.winner;
 
@@ -104,7 +95,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* 🎯 CURRENT NUMBER — LUÔN HIỆN */}
+          {/* 🎯 CURRENT NUMBER */}
           <CurrentNumber
             number={state.current}
             running={state.running}
@@ -147,7 +138,7 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
             voiceOn={voiceOn}
           />
 
-          {/* 🔄 RESET GAME — chỉ hiện khi có winner */}
+          {/* 🔄 RESET GAME */}
           {canResetGame && (
             <Box textAlign="center" mb={2}>
               <button

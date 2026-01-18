@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 const API = process.env.REACT_APP_LOTO_API || "http://localhost:8080";
 
-// random 6 ký tự a-z0-9
 const randomSuffix = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let str = "";
@@ -11,21 +10,34 @@ const randomSuffix = () => {
   return str;
 };
 
-export default function Lobby({ onJoin, user, displayName, setDisplayName, setUser }) {
+export default function Lobby({
+  onJoin,
+  user,
+  displayName,
+  setDisplayName,
+  setUser,
+}) {
   const [rooms, setRooms] = useState([]);
   const [roomId, setRoomId] = useState("");
   const [secret, setSecret] = useState("");
 
-  // Khi displayName thay đổi → cập nhật user = random6char + displayName
-  useEffect(() => {
-    const randomPart = user.split("-")[0] || randomSuffix();
-    const newUser = `${randomPart}-${displayName.trim() || "Guest"}`;
-    setUser(newUser);
-    localStorage.setItem("loto_user", newUser);
-    localStorage.setItem("loto_displayName", displayName);
-  }, [displayName]);
+  // 🔒 random suffix chỉ tạo 1 lần
+  const randomRef = useRef(user?.split("-")[0] || randomSuffix());
 
-  // Load room list
+  // ✅ cập nhật user khi displayName đổi (KHÔNG đổi random)
+  useEffect(() => {
+    const name = displayName.trim() || "Guest";
+    const newUser = `${randomRef.current}-${name}`;
+
+    if (newUser !== user) {
+      setUser(newUser);
+      localStorage.setItem("loto_user", newUser);
+      localStorage.setItem("loto_displayName", name);
+    }
+  }, [displayName]); // ❗ KHÔNG thêm user vào deps
+
+  /* ================= ROOMS ================= */
+
   const loadRooms = async () => {
     try {
       const res = await fetch(`${API}/rooms`);
@@ -42,9 +54,13 @@ export default function Lobby({ onJoin, user, displayName, setDisplayName, setUs
     return () => clearInterval(t);
   }, []);
 
+  /* ================= ACTIONS ================= */
+
   const createRoom = async () => {
-    if (!roomId.trim() || !secret.trim()) return alert("Nhập Room ID và Secret");
-    if (!displayName.trim()) return alert("Tên hiển thị không hợp lệ");
+    if (!roomId.trim() || !secret.trim())
+      return alert("Nhập Room ID và Secret");
+    if (!displayName.trim())
+      return alert("Tên hiển thị không hợp lệ");
 
     const res = await fetch(
       `${API}/rooms/create?id=${roomId}&user=${user}&secret=${secret}`,
@@ -59,13 +75,16 @@ export default function Lobby({ onJoin, user, displayName, setDisplayName, setUs
     const s = prompt("Enter room secret:");
     if (!s) return;
 
-    const res = await fetch(`${API}/rooms/join?id=${id}&user=${user}&secret=${s}`, {
-      method: "POST",
-    });
+    const res = await fetch(
+      `${API}/rooms/join?id=${id}&user=${user}&secret=${s}`,
+      { method: "POST" }
+    );
     if (!res.ok) return alert("❌ Wrong secret");
 
     onJoin({ id, secret: s, user });
   };
+
+  /* ================= UI ================= */
 
   const inputStyle = {
     width: "100%",
@@ -90,9 +109,27 @@ export default function Lobby({ onJoin, user, displayName, setDisplayName, setUs
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f7fa", padding: 40, fontFamily: "Arial, sans-serif" }}>
-      <div style={{ maxWidth: 600, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-        <h2 style={{ textAlign: "center", marginBottom: 20 }}>🎱 LOTO LOBBY</h2>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fa",
+        padding: 40,
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 600,
+          margin: "0 auto",
+          background: "#fff",
+          borderRadius: 12,
+          padding: 24,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        }}
+      >
+        <h2 style={{ textAlign: "center", marginBottom: 20 }}>
+          🎱 LOTO LOBBY
+        </h2>
 
         {/* DISPLAY NAME */}
         <input
@@ -103,7 +140,14 @@ export default function Lobby({ onJoin, user, displayName, setDisplayName, setUs
         />
 
         {/* CREATE ROOM */}
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 20 }}>
+        <div
+          style={{
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 20,
+          }}
+        >
           <h4>Create Room</h4>
           <input
             placeholder="Room ID"
@@ -125,7 +169,9 @@ export default function Lobby({ onJoin, user, displayName, setDisplayName, setUs
         {/* ROOM LIST */}
         <div>
           <h4>Available Rooms</h4>
-          {rooms.length === 0 && <p style={{ color: "#777" }}>No rooms available</p>}
+          {rooms.length === 0 && (
+            <p style={{ color: "#777" }}>No rooms available</p>
+          )}
           {rooms.map((r) => (
             <div
               key={r.id}

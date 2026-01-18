@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"my-source/loto-full/backend/internal/core"
+	"my-source/loto-full/backend/internal/db"
 	"my-source/loto-full/backend/internal/utils"
 )
 
@@ -35,11 +36,15 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
 	secret := r.URL.Query().Get("secret")
 
-	core.Mu.Lock()
-	defer core.Mu.Unlock()
+	if id == "" || user == "" || secret == "" {
+		http.Error(w, "missing params", http.StatusBadRequest)
+		return
+	}
 
+	core.Mu.Lock()
 	if core.Rooms[id] != nil {
-		w.WriteHeader(400)
+		core.Mu.Unlock()
+		http.Error(w, "room exists", http.StatusBadRequest)
 		return
 	}
 
@@ -53,6 +58,21 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		Interval: 5,
 		Lotos:    map[int]string{},
 	}
+	core.Mu.Unlock()
+	_ = db.CreateRoom(
+		r.Context(),
+		id,
+		user,
+		secret,
+	)
+
+	_ = db.InsertRoomJoin(
+		r.Context(),
+		id,
+		user,
+		utils.GetClientIP(r),
+		r.UserAgent(),
+	)
 
 	utils.JSON(w, map[string]bool{"ok": true})
 }
@@ -62,16 +82,30 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
 	secret := r.URL.Query().Get("secret")
 
-	core.Mu.Lock()
-	defer core.Mu.Unlock()
+	if id == "" || user == "" || secret == "" {
+		http.Error(w, "missing params", http.StatusBadRequest)
+		return
+	}
 
+	core.Mu.Lock()
 	rm := core.Rooms[id]
 	if rm == nil || rm.Secret != secret {
-		w.WriteHeader(403)
+		core.Mu.Unlock()
+		http.Error(w, "unauthorized", http.StatusForbidden)
 		return
 	}
 
 	rm.Users[user] = time.Now()
+	core.Mu.Unlock()
+
+	_ = db.InsertRoomJoin(
+		r.Context(),
+		id,
+		user,
+		utils.GetClientIP(r),
+		r.UserAgent(),
+	)
+
 	utils.JSON(w, map[string]bool{"ok": true})
 }
 
