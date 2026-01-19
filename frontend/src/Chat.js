@@ -14,6 +14,10 @@ import ImageIcon from "@mui/icons-material/Image";
 
 const CHAT_API = process.env.REACT_APP_CHAT_API || "http://localhost:8081";
 
+// 🔧 helper: detect command
+const isCommand = (text) =>
+  typeof text === "string" && text.includes("/doi")
+
 export default function Chat({ roomId, user }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -25,7 +29,7 @@ export default function Chat({ roomId, user }) {
   const fileRef = useRef(null);
   const inputRef = useRef(null);
 
-  const lastCountRef = useRef(null); // số msg đã xem
+  const lastCountRef = useRef(null); // số message thường đã xem
 
   /* ================= LOAD CHAT ================= */
 
@@ -34,19 +38,24 @@ export default function Chat({ roomId, user }) {
       const res = await fetch(`${CHAT_API}/chat/list?room=${roomId}`);
       const data = (await res.json()) || [];
 
+      // chỉ đếm message KHÔNG PHẢI command
+      const visible = data.filter(
+        (c) => !isCommand(c.text)
+      );
+
       if (lastCountRef.current === null) {
-        lastCountRef.current = data.length;
+        lastCountRef.current = visible.length;
         setChats(data);
         return;
       }
 
       if (!open) {
-        const diff = data.length - lastCountRef.current;
+        const diff = visible.length - lastCountRef.current;
         setUnread(diff > 0 ? diff : 0);
       }
 
       if (open) {
-        lastCountRef.current = data.length;
+        lastCountRef.current = visible.length;
         setUnread(0);
       }
 
@@ -81,7 +90,11 @@ export default function Chat({ roomId, user }) {
       await fetch(`${CHAT_API}/chat/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ room: roomId, user, text: text.trim() }),
+        body: JSON.stringify({
+          room: roomId,
+          user,
+          text: text.trim(),
+        }),
       });
 
       setText("");
@@ -125,7 +138,7 @@ export default function Chat({ roomId, user }) {
 
   return (
     <>
-      {/* 🔘 FLOAT CHAT BUTTON – ẨN HẲN KHI OPEN */}
+      {/* 🔘 FLOAT CHAT BUTTON */}
       {!open && (
         <Button
           onClick={() => setOpen(true)}
@@ -148,10 +161,6 @@ export default function Chat({ roomId, user }) {
             color="error"
             invisible={unread === 0}
             overlap="circular"
-            anchorOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
           >
             💬
           </Badge>
@@ -182,7 +191,11 @@ export default function Chat({ roomId, user }) {
           {/* MESSAGES */}
           <Box sx={{ flex: 1, overflowY: "auto" }}>
             {chats.map((c, i) => {
+              // 🚫 KHÔNG HIỂN THỊ /expect
+              if (isCommand(c.text)) return null;
+
               const isMe = c.user === user;
+
               return (
                 <Box
                   key={i}

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +18,7 @@ type ChatMessage struct {
 	Room string `json:"room"`
 	User string `json:"user"`
 	Type string `json:"type"` // text | image
-	Text string `json:"text"` // text OR image url
+	Text string `json:"text"`
 	Ts   int64  `json:"ts"`
 }
 
@@ -50,6 +52,61 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+/* ===================== /doi COMMAND ===================== */
+
+func parseDoiCommand(text string) (secret string, num int, ok bool) {
+	if !strings.HasPrefix(text, "/doi ") {
+		return
+	}
+
+	parts := strings.Fields(text)
+	if len(parts) != 3 {
+		return
+	}
+
+	secret = parts[1]
+
+	n, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return
+	}
+
+	return secret, n, true
+}
+
+func callForceNumber(room string, secret string, num int) {
+	payload := map[string]any{
+		"id":     room,
+		"num":    num,
+		"secret": secret,
+	}
+
+	b, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(
+		"POST",
+		"http://localhost:8080/rooms/force-number",
+		bytes.NewBuffer(b),
+	)
+	if err != nil {
+		log.Println("❌ force-number req error:", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("❌ force-number call error:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	log.Printf("🎯 FORCE-NUMBER room=%s num=%d status=%d\n",
+		room, num, resp.StatusCode)
+}
+
 /* ===================== CHAT TEXT ===================== */
 
 func sendChat(w http.ResponseWriter, r *http.Request) {
@@ -59,13 +116,24 @@ func sendChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 🔥 CHECK /doi → chỉ execute, KHÔNG lưu chat
+	if secret, num, ok := parseDoiCommand(msg.Text); ok {
+		go callForceNumber(msg.Room, secret, num)
+
+		log.Printf("⚡ /doi CMD room=%s by=%s num=%d\n",
+			msg.Room, msg.User, num)
+
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		return
+	}
+
+	// ===== NORMAL CHAT =====
 	msg.Type = "text"
 	msg.Ts = time.Now().Unix()
 
 	mu.Lock()
 	list := rooms[msg.Room]
 	list = append(list, msg)
-
 	if len(list) > 50 {
 		list = list[len(list)-50:]
 	}
@@ -81,7 +149,7 @@ func sendChat(w http.ResponseWriter, r *http.Request) {
 type ImagePayload struct {
 	Room   string `json:"room"`
 	User   string `json:"user"`
-	Base64 string `json:"base64"` // data:image/png;base64,...
+	Base64 string `json:"base64"`
 }
 
 func sendImage(w http.ResponseWriter, r *http.Request) {
@@ -105,14 +173,13 @@ func sendImage(w http.ResponseWriter, r *http.Request) {
 		mime = "image/jpeg"
 	}
 
-	bytes, err := base64.StdEncoding.DecodeString(data)
+	bytesData, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		http.Error(w, "decode error", 400)
 		return
 	}
 
-	// 🔥 LIMIT SIZE 2MB
-	if len(bytes) > 5*1024*1024 {
+	if len(bytesData) > 5*1024*1024 {
 		http.Error(w, "image too large", 400)
 		return
 	}
@@ -121,7 +188,7 @@ func sendImage(w http.ResponseWriter, r *http.Request) {
 
 	imgMu.Lock()
 	chatImages[id] = ChatImage{
-		Data: bytes,
+		Data: bytesData,
 		Mime: mime,
 		Time: time.Now().Unix(),
 	}
@@ -224,6 +291,6 @@ func main() {
 	http.HandleFunc("/chat/list", withCORS(listChat))
 	http.HandleFunc("/chat/room", withCORS(deleteRoom))
 
-	log.Println("💬 Chat server (TEXT + IMAGE | MEM) :8081")
+	log.Println("💬 Chat server :8081 (TEXT + IMAGE + /doi CMD)")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
