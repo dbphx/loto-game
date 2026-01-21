@@ -30,19 +30,28 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   const load = async () => {
     try {
       const res = await fetch(`${API}/rooms/state?id=${roomId}`);
+
+      // ❌ room không tồn tại
       if (!res.ok) {
-        onLeave(); // room bị xóa hoặc lỗi
+        onLeave();               // ⬅️ QUAY VỀ LOBBY
         return;
       }
 
       const data = await res.json();
-      if (!mountedRef.current || !data) return;
 
+      if (!data) {
+        onLeave();               // ⬅️ PHÒNG HỜ
+        return;
+      }
+
+      if (!mountedRef.current) return;
       setState(data);
     } catch (e) {
       console.error("load room error:", e);
+      onLeave();                 // ⬅️ NETWORK / SERVER DIE
     }
   };
+
 
   /* ================= POLL + PING (NO JOIN) ================= */
 

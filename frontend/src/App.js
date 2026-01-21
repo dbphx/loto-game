@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import Lobby from "./Lobby";
-import Room from "./Room";
 import RoomV2 from "./RoomV2";
 
-// Hàm random 6 ký tự a-z0-9
+// random 6 ký tự a-z0-9
 const randomSuffix = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let str = "";
@@ -14,11 +13,13 @@ const randomSuffix = () => {
 };
 
 export default function App() {
-  // 🔥 RESTORE SESSION
-  const saved = localStorage.getItem("loto_session");
-  const parsed = saved ? JSON.parse(saved) : null;
+  /* ================= RESTORE SESSION ================= */
 
-  // User = random6char + displayName
+  let parsed = null;
+  try {
+    parsed = JSON.parse(localStorage.getItem("loto_session"));
+  } catch {}
+
   const [user, setUser] = useState(
     parsed?.user || `${randomSuffix()}-${parsed?.displayName || ""}`
   );
@@ -26,21 +27,38 @@ export default function App() {
   const [displayName, setDisplayName] = useState(parsed?.displayName || "");
 
   const [room, setRoom] = useState(
-    parsed?.roomId ? { id: parsed.roomId, secret: parsed.secret } : null
+    parsed?.roomId
+      ? { id: parsed.roomId, secret: parsed.secret }
+      : null
   );
 
-  // 🔐 Sync session
+  /* ================= SYNC STORAGE ================= */
+
   useEffect(() => {
+    if (!room) {
+      localStorage.removeItem("loto_session");
+      return;
+    }
+
     localStorage.setItem(
       "loto_session",
       JSON.stringify({
         user,
         displayName,
-        roomId: room?.id || null,
-        secret: room?.secret || null,
+        roomId: room.id,
+        secret: room.secret,
       })
     );
   }, [user, displayName, room]);
+
+  /* ================= LEAVE ROOM ================= */
+
+  const leaveRoom = () => {
+    setRoom(null);
+    localStorage.removeItem("loto_session");
+  };
+
+  /* ================= RENDER ================= */
 
   return room ? (
     <RoomV2
@@ -48,7 +66,7 @@ export default function App() {
       displayName={displayName}
       roomId={room.id}
       secret={room.secret}
-      onLeave={() => setRoom(null)}
+      onLeave={leaveRoom}
     />
   ) : (
     <Lobby
