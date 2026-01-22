@@ -1,6 +1,9 @@
 import { Box, CardContent, Typography, Stack, Chip } from "@mui/material";
 
 export default function CalledNumbers({ called }) {
+  /* ===== TOTAL ===== */
+  const total = called.length;
+
   /* ===== LAST CALLED NUMBERS ===== */
   const last1 = called[called.length - 1];
   const last2 = called[called.length - 2];
@@ -21,6 +24,19 @@ export default function CalledNumbers({ called }) {
 
   return (
     <CardContent>
+      {/* 🔢 TOTAL COUNT */}
+      <Typography
+        variant="subtitle1"
+        sx={{
+          textAlign: "center",
+          fontWeight: "bold",
+          mb: 2,
+        }}
+      >
+        🔢 Đã kêu: {total} số
+      </Typography>
+
+      {/* 📊 GRID */}
       <Box
         sx={{
           display: "grid",
