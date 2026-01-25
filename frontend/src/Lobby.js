@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+
 const API = process.env.REACT_APP_LOTO_API || "http://localhost:8080";
 
+/* ================= RANDOM USER SUFFIX ================= */
 const randomSuffix = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let str = "";
@@ -21,10 +23,10 @@ export default function Lobby({
   const [roomId, setRoomId] = useState("");
   const [secret, setSecret] = useState("");
 
-  // 🔒 random suffix chỉ tạo 1 lần
+  /* ===== random prefix chỉ tạo 1 lần ===== */
   const randomRef = useRef(user?.split("-")[0] || randomSuffix());
 
-  // ✅ cập nhật user khi displayName đổi (KHÔNG đổi random)
+  /* ===== update user khi đổi displayName ===== */
   useEffect(() => {
     const name = displayName.trim() || "Guest";
     const newUser = `${randomRef.current}-${name}`;
@@ -34,17 +36,16 @@ export default function Lobby({
       localStorage.setItem("loto_user", newUser);
       localStorage.setItem("loto_displayName", name);
     }
-  }, [displayName]); // ❗ KHÔNG thêm user vào deps
+  }, [displayName]); // ❗ không thêm user
 
-  /* ================= ROOMS ================= */
-
+  /* ================= LOAD ROOMS ================= */
   const loadRooms = async () => {
     try {
       const res = await fetch(`${API}/rooms`);
       const data = await res.json();
       setRooms(data || []);
     } catch (e) {
-      console.error(e);
+      console.error("loadRooms error:", e);
     }
   };
 
@@ -54,8 +55,7 @@ export default function Lobby({
     return () => clearInterval(t);
   }, []);
 
-  /* ================= ACTIONS ================= */
-
+  /* ================= CREATE ROOM ================= */
   const createRoom = async () => {
     if (!roomId.trim() || !secret.trim())
       return alert("Nhập Room ID và Secret");
@@ -66,11 +66,13 @@ export default function Lobby({
       `${API}/rooms/create?id=${roomId}&user=${user}&secret=${secret}`,
       { method: "POST" }
     );
-    if (!res.ok) return alert("Room exists");
+
+    if (!res.ok) return alert("Room already exists");
 
     onJoin({ id: roomId, secret, user });
   };
 
+  /* ================= JOIN ROOM ================= */
   const joinRoom = async (id) => {
     const s = prompt("Enter room secret:");
     if (!s) return;
@@ -79,13 +81,13 @@ export default function Lobby({
       `${API}/rooms/join?id=${id}&user=${user}&secret=${s}`,
       { method: "POST" }
     );
+
     if (!res.ok) return alert("❌ Wrong secret");
 
     onJoin({ id, secret: s, user });
   };
 
-  /* ================= UI ================= */
-
+  /* ================= UI STYLES ================= */
   const inputStyle = {
     width: "100%",
     padding: 12,
@@ -93,13 +95,12 @@ export default function Lobby({
     borderRadius: 6,
     border: "1px solid #ccc",
     fontSize: 14,
-    boxSizing: "border-box",
   };
 
   const buttonStyle = {
     width: "100%",
     padding: 12,
-    background: "#4caf50",
+    background: "#c62828",
     color: "#fff",
     border: "none",
     borderRadius: 6,
@@ -109,26 +110,33 @@ export default function Lobby({
   };
 
   return (
+    /* ================= FULL BACKGROUND ================= */
     <div
       style={{
         minHeight: "100vh",
-        background: "#f5f7fa",
-        padding: 40,
+        width: "100vw",
+        backgroundImage: "url(/tet.webp)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         fontFamily: "Arial, sans-serif",
       }}
     >
+      {/* ================= LOBBY FORM ================= */}
       <div
         style={{
-          maxWidth: 600,
-          margin: "0 auto",
-          background: "#fff",
+          width: 600,
+          background: "rgba(255,248,220,0.92)", // vàng Tết
           borderRadius: 12,
           padding: 24,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
         }}
       >
-        <h2 style={{ textAlign: "center", marginBottom: 20 }}>
-          🎱 LOTO LOBBY
+        <h2 style={{ textAlign: "center", color: "#8B0000" }}>
+          🎊 LOTO TẾT VIỆT 🎊
         </h2>
 
         {/* DISPLAY NAME */}
@@ -149,29 +157,34 @@ export default function Lobby({
           }}
         >
           <h4>Create Room</h4>
+
           <input
             placeholder="Room ID"
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             style={inputStyle}
           />
+
           <input
             placeholder="Secret"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
             style={inputStyle}
           />
+
           <button onClick={createRoom} style={buttonStyle}>
-            ➕ Create Room
+            🧧 Create Room
           </button>
         </div>
 
         {/* ROOM LIST */}
         <div>
           <h4>Available Rooms</h4>
+
           {rooms.length === 0 && (
             <p style={{ color: "#777" }}>No rooms available</p>
           )}
+
           {rooms.map((r) => (
             <div
               key={r.id}
@@ -183,6 +196,7 @@ export default function Lobby({
                 borderRadius: 6,
                 padding: 10,
                 marginBottom: 8,
+                background: "#fff",
               }}
             >
               <div>
@@ -191,6 +205,7 @@ export default function Lobby({
                   👥 {r.players} | {r.running ? "Running" : "Waiting"}
                 </div>
               </div>
+
               <button
                 onClick={() => joinRoom(r.id)}
                 style={{
@@ -200,7 +215,6 @@ export default function Lobby({
                   border: "none",
                   borderRadius: 6,
                   cursor: "pointer",
-                  fontSize: 14,
                 }}
               >
                 Join
