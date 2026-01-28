@@ -48,6 +48,12 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(core.Rooms) > 100 {
+		core.Mu.Unlock()
+		http.Error(w, "to many room, please play on other time", http.StatusBadRequest)
+		return
+	}
+
 	core.Rooms[id] = &core.Room{
 		ID:       id,
 		Admin:    user,
