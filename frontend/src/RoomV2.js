@@ -31,16 +31,15 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
     try {
       const res = await fetch(`${API}/rooms/state?id=${roomId}`);
 
-      // ❌ room không tồn tại
       if (!res.ok) {
-        onLeave();               // ⬅️ QUAY VỀ LOBBY
+        onLeave();
         return;
       }
 
       const data = await res.json();
 
       if (!data) {
-        onLeave();               // ⬅️ PHÒNG HỜ
+        onLeave();
         return;
       }
 
@@ -48,12 +47,11 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
       setState(data);
     } catch (e) {
       console.error("load room error:", e);
-      onLeave();                 // ⬅️ NETWORK / SERVER DIE
+      onLeave();
     }
   };
 
-
-  /* ================= POLL + PING (NO JOIN) ================= */
+  /* ================= POLL + PING ================= */
 
   useEffect(() => {
     mountedRef.current = true;
@@ -87,112 +85,120 @@ export default function RoomV2({ roomId, user, secret, onLeave }) {
   /* ================= UI ================= */
 
   return (
-    <Box sx={{ background: "#f4f6f8", minHeight: "100vh", p: 3 }}>
-      <Card sx={{ maxWidth: 1000, mx: "auto", borderRadius: 3 }}>
-        <CardContent>
-          <RoomHeader
-            roomId={roomId}
-            user={user}
-            state={state}
-            isAdmin={isAdmin}
-            onLeave={onLeave}
-            onShowUsers={() => setOpenUsers(true)}
-            API={API}
-            voiceOn={voiceOn}
-            setVoiceOn={setVoiceOn}
-          />
+    <Box
+      sx={{
+        minHeight: "100vh",
+        backgroundImage: "url(/anhtet.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* overlay để dễ đọc chữ */}
+      <Box sx={{ background: "rgba(244,246,248,0.1)", minHeight: "100vh", p: 3 }}>
+        <Card sx={{ maxWidth: 1000, mx: "auto", borderRadius: 3 }}>
+          <CardContent>
+            <RoomHeader
+              roomId={roomId}
+              user={user}
+              state={state}
+              isAdmin={isAdmin}
+              onLeave={onLeave}
+              onShowUsers={() => setOpenUsers(true)}
+              API={API}
+              voiceOn={voiceOn}
+              setVoiceOn={setVoiceOn}
+            />
 
-          <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 2 }} />
 
-          {/* 🎯 CURRENT NUMBER */}
-          <CurrentNumber
-            number={state.current}
-            running={state.running}
-            isAdmin={canStartGame}
-            onStart={
-              canStartGame
-                ? () =>
-                    fetch(
-                      `${API}/rooms/start?id=${roomId}&secret=${secret}`,
-                      { method: "POST" }
-                    )
-                : undefined
-            }
-            voiceOn={voiceOn}
-          />
+            <CurrentNumber
+              number={state.current}
+              running={state.running}
+              isAdmin={canStartGame}
+              onStart={
+                canStartGame
+                  ? () =>
+                      fetch(
+                        `${API}/rooms/start?id=${roomId}&secret=${secret}`,
+                        { method: "POST" }
+                      )
+                  : undefined
+              }
+              voiceOn={voiceOn}
+            />
 
-          <BingoQueue
-            state={state}
-            isAdmin={isAdmin}
-            API={API}
-            roomId={roomId}
-          />
+            <BingoQueue
+              state={state}
+              isAdmin={isAdmin}
+              API={API}
+              roomId={roomId}
+            />
 
-          <BingoInput
-            state={state}
-            user={user}
-            roomId={roomId}
-            API={API}
-            bingoNums={bingoNums}
-            setBingoNums={setBingoNums}
-            bingoActive={bingoActive}
-            setBingoActive={setBingoActive}
-            voiceOn={voiceOn}
-          />
+            <BingoInput
+              state={state}
+              user={user}
+              roomId={roomId}
+              API={API}
+              bingoNums={bingoNums}
+              setBingoNums={setBingoNums}
+              bingoActive={bingoActive}
+              setBingoActive={setBingoActive}
+              voiceOn={voiceOn}
+            />
 
-          {/* 🏆 WINNER */}
-          <WinnerCard
-            winner={state.winner}
-            nums={state.winnerNums}
-            voiceOn={voiceOn}
-          />
+            <WinnerCard
+              winner={state.winner}
+              nums={state.winnerNums}
+              voiceOn={voiceOn}
+            />
 
-          {/* 🔄 RESET GAME */}
-          {canResetGame && (
-            <Box textAlign="center" mb={2}>
-              <button
-                onClick={async () => {
-                  await fetch(`${API}/rooms/restart?id=${roomId}`, {
-                    method: "POST",
-                  });
-                  setBingoNums("");
-                  setBingoActive(false);
-                  load();
-                }}
-                style={{
-                  padding: "10px 20px",
-                  background: "#d32f2f",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-              >
-                🔄 Reset Game
-              </button>
-            </Box>
-          )}
+            {canResetGame && (
+              <Box textAlign="center" mb={2}>
+                <button
+                  onClick={async () => {
+                    await fetch(`${API}/rooms/restart?id=${roomId}`, {
+                      method: "POST",
+                    });
+                    setBingoNums("");
+                    setBingoActive(false);
+                    load();
+                  }}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#d32f2f",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  🔄 Reset Game
+                </button>
+              </Box>
+            )}
 
-          <LotoSelect
-            roomId={roomId}
-            user={user}
-            state={state}
-            API={API}
-          />
+            <LotoSelect
+              roomId={roomId}
+              user={user}
+              state={state}
+              API={API}
+            />
 
-          <CalledNumbers called={state.called || []} />
-        </CardContent>
-      </Card>
+            <CalledNumbers called={state.called || []} />
+          </CardContent>
+        </Card>
 
-      <UsersDialog
-        open={openUsers}
-        onClose={() => setOpenUsers(false)}
-        users={state.users}
-        admin={state.admin}
-        me={user}
-      />
+        <UsersDialog
+          open={openUsers}
+          onClose={() => setOpenUsers(false)}
+          users={state.users}
+          admin={state.admin}
+          me={user}
+        />
 
-      <Chat roomId={roomId} user={user} />
+        <Chat roomId={roomId} user={user} />
+      </Box>
     </Box>
   );
 }
