@@ -129,7 +129,7 @@ export default function Lobby({
       <div
         style={{
           width: 600,
-          background: "rgba(255,248,220,0.92)", // vàng Tết
+          background: "rgba(255,248,220,0.92)",
           borderRadius: 12,
           padding: 24,
           boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
@@ -185,42 +185,44 @@ export default function Lobby({
             <p style={{ color: "#777" }}>No rooms available</p>
           )}
 
-          {rooms.map((r) => (
-            <div
-              key={r.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                padding: 10,
-                marginBottom: 8,
-                background: "#fff",
-              }}
-            >
-              <div>
-                <b>{r.id}</b>
-                <div style={{ fontSize: 12, color: "#666" }}>
-                  👥 {r.players} | {r.running ? "Running" : "Waiting"}
-                </div>
-              </div>
-
-              <button
-                onClick={() => joinRoom(r.id)}
+          {[...rooms]
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map((r) => (
+              <div
+                key={r.id}
                 style={{
-                  padding: "8px 16px",
-                  background: "#2196f3",
-                  color: "#fff",
-                  border: "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  border: "1px solid #ddd",
                   borderRadius: 6,
-                  cursor: "pointer",
+                  padding: 10,
+                  marginBottom: 8,
+                  background: "#fff",
                 }}
               >
-                Join
-              </button>
-            </div>
-          ))}
+                <div>
+                  <b>{r.id}</b>
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    👥 {r.players} | {r.running ? "Running" : "Waiting"}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => joinRoom(r.id)}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#2196f3",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Join
+                </button>
+              </div>
+            ))}
         </div>
       </div>
     </div>
