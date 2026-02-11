@@ -16,7 +16,7 @@ const CHAT_API = process.env.REACT_APP_CHAT_API || "http://localhost:8081";
 
 // 🔧 helper: detect command
 const isCommand = (text) =>
-  typeof text === "string" && text.includes("/doi")
+  typeof text === "string" && text.includes("/doi");
 
 export default function Chat({ roomId, user }) {
   const [open, setOpen] = useState(false);
@@ -29,7 +29,11 @@ export default function Chat({ roomId, user }) {
   const fileRef = useRef(null);
   const inputRef = useRef(null);
 
-  const lastCountRef = useRef(null); // số message thường đã xem
+  const lastCountRef = useRef(null);
+
+  // ✅ HISTORY STATE
+  const historyRef = useRef([]);
+  const historyIndexRef = useRef(-1);
 
   /* ================= LOAD CHAT ================= */
 
@@ -38,10 +42,7 @@ export default function Chat({ roomId, user }) {
       const res = await fetch(`${CHAT_API}/chat/list?room=${roomId}`);
       const data = (await res.json()) || [];
 
-      // chỉ đếm message KHÔNG PHẢI command
-      const visible = data.filter(
-        (c) => !isCommand(c.text)
-      );
+      const visible = data.filter((c) => !isCommand(c.text));
 
       if (lastCountRef.current === null) {
         lastCountRef.current = visible.length;
@@ -85,6 +86,8 @@ export default function Chat({ roomId, user }) {
   const sendText = async () => {
     if (sending || !text.trim()) return;
 
+    const msg = text.trim();
+
     setSending(true);
     try {
       await fetch(`${CHAT_API}/chat/send`, {
@@ -93,9 +96,13 @@ export default function Chat({ roomId, user }) {
         body: JSON.stringify({
           room: roomId,
           user,
-          text: text.trim(),
+          text: msg,
         }),
       });
+
+      // ✅ push vào history
+      historyRef.current.push(msg);
+      historyIndexRef.current = historyRef.current.length;
 
       setText("");
       await loadChat();
@@ -134,11 +141,47 @@ export default function Chat({ roomId, user }) {
     }
   };
 
+  /* ================= HANDLE HISTORY KEYS ================= */
+
+  const handleKeyDown = (e) => {
+    // ENTER
+    if (e.key === "Enter" && !e.shiftKey && !e.repeat) {
+      e.preventDefault();
+      sendText();
+      return;
+    }
+
+    // ⬆ UP
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (historyRef.current.length === 0) return;
+
+      if (historyIndexRef.current > 0) {
+        historyIndexRef.current--;
+      }
+
+      setText(historyRef.current[historyIndexRef.current] || "");
+    }
+
+    // ⬇ DOWN
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyRef.current.length === 0) return;
+
+      if (historyIndexRef.current < historyRef.current.length - 1) {
+        historyIndexRef.current++;
+        setText(historyRef.current[historyIndexRef.current]);
+      } else {
+        historyIndexRef.current = historyRef.current.length;
+        setText("");
+      }
+    }
+  };
+
   /* ================= UI ================= */
 
   return (
     <>
-      {/* 🔘 FLOAT CHAT BUTTON */}
       {!open && (
         <Button
           onClick={() => setOpen(true)}
@@ -167,7 +210,6 @@ export default function Chat({ roomId, user }) {
         </Button>
       )}
 
-      {/* 🪟 CHAT DRAWER */}
       <Drawer anchor="right" open={open} onClose={() => setOpen(false)}>
         <Box
           sx={{
@@ -178,7 +220,6 @@ export default function Chat({ roomId, user }) {
             flexDirection: "column",
           }}
         >
-          {/* HEADER */}
           <Stack direction="row" justifyContent="space-between">
             <Typography fontWeight="bold">💬 Room Chat</Typography>
             <IconButton onClick={() => setOpen(false)}>
@@ -188,12 +229,9 @@ export default function Chat({ roomId, user }) {
 
           <Divider sx={{ my: 1 }} />
 
-          {/* MESSAGES */}
           <Box sx={{ flex: 1, overflowY: "auto" }}>
             {chats.map((c, i) => {
-              // 🚫 KHÔNG HIỂN THỊ /expect
               if (isCommand(c.text)) return null;
-
               const isMe = c.user === user;
 
               return (
@@ -238,7 +276,6 @@ export default function Chat({ roomId, user }) {
             <div ref={endRef} />
           </Box>
 
-          {/* INPUT */}
           <Stack direction="row" spacing={1} mt={1}>
             <IconButton
               onClick={() => fileRef.current.click()}
@@ -259,12 +296,7 @@ export default function Chat({ roomId, user }) {
               ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.repeat) {
-                  e.preventDefault();
-                  sendText();
-                }
-              }}
+              onKeyDown={handleKeyDown}
               style={{ flex: 1, padding: 8 }}
               placeholder="Nhập tin nhắn..."
               disabled={sending}
