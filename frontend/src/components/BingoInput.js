@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Stack } from "@mui/material";
+import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import { speak } from "../utils/utils";
 
 export default function BingoInput({
@@ -15,6 +15,7 @@ export default function BingoInput({
   const called = state.called || [];
   const queue = state.bingoQueue || [];
   const myQueueItem = queue.find((q) => q.user === user);
+  const isRejected = bingoActive && !myQueueItem;
 
   const canBingo = state.running && called.length >= 5;
 
@@ -78,10 +79,32 @@ export default function BingoInput({
             padding: 10,
             fontSize: 16,
           }}
+          disabled={isRejected}
         />
-        <Button sx={{ mt: 1 }} variant="contained" onClick={reportBingo}>
+        {isRejected && (
+          <Typography sx={{ mt: 1 }} color="error" fontSize={14}>
+            🚫 Admin đã từ chối lượt BINGO này. Bấm "🎉 BINGO" lại để gửi lại.
+          </Typography>
+        )}
+        <Button
+          sx={{ mt: 1 }}
+          variant="contained"
+          onClick={reportBingo}
+          disabled={isRejected}
+        >
           📤 Gửi 5 số
         </Button>
+        {isRejected && (
+          <Button
+            sx={{ mt: 1, ml: 1 }}
+            variant="outlined"
+            onClick={() => {
+              setBingoActive(false);
+            }}
+          >
+            🔁 Trở lại
+          </Button>
+        )}
       </Box>
     );
   }

@@ -32,44 +32,66 @@ export default function BingoQueue({ state, isAdmin, API, roomId }) {
       <CardContent>
         <Typography variant="h6">📝 BINGO Queue</Typography>
 
-        {queue.map((q, i) => (
-          <Box
-            key={q.user}
-            sx={{
-              mt: 1,
-              p: 1,
-              borderBottom: "1px dashed #ccc",
-              background:
-                i === 0 ? "rgba(255,152,0,0.15)" : "transparent",
-            }}
-          >
-            <Typography>
-              <b>{q.user}</b> — {q.nums || "đang nhập"}
-            </Typography>
+        {queue.map((q, i) => {
+          const numsString = q.nums || "";
+          const parsedNums = numsString
+            .split(/[,\s]+/)
+            .map((n) => n.trim())
+            .filter(Boolean);
+          const hasFiveNums = parsedNums.length === 5;
 
-            {isAdmin && i === 0 && (
-              <Stack direction="row" spacing={1} mt={1}>
-                <Button
-                  variant="contained"
-                  color="success"
-                  size="small"
-                  onClick={approve}
-                >
-                  Approve
-                </Button>
+          return (
+            <Box
+              key={q.user}
+              sx={{
+                mt: 1,
+                p: 1,
+                borderBottom: "1px dashed #ccc",
+                background:
+                  i === 0 ? "rgba(255,152,0,0.15)" : "transparent",
+              }}
+            >
+              <Typography>
+                <b>{q.user}</b> — {numsString || "đang nhập"}
+              </Typography>
 
-                <Button
-                  variant="contained"
-                  color="error"
-                  size="small"
-                  onClick={reject}
-                >
-                  Reject
-                </Button>
-              </Stack>
-            )}
-          </Box>
-        ))}
+              {isAdmin && i === 0 && (
+                <>
+                  <Stack direction="row" spacing={1} mt={1}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="small"
+                      onClick={approve}
+                      disabled={!hasFiveNums}
+                    >
+                      Approve
+                    </Button>
+
+                    <Button
+                      variant="contained"
+                      color="error"
+                      size="small"
+                      onClick={reject}
+                    >
+                      Reject
+                    </Button>
+                  </Stack>
+
+                  {!hasFiveNums && (
+                    <Typography
+                      variant="body2"
+                      color="warning.main"
+                      sx={{ mt: 1 }}
+                    >
+                      ⚠️ Cần đủ 5 số để duyệt
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Box>
+          );
+        })}
       </CardContent>
     </Card>
   );
